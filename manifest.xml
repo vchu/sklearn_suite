@@ -1,0 +1,17 @@
+<package>
+  <description brief="sklearn_suite">
+
+     sklearn_suite - wrapper that has many basic training and testing
+                          utilities for scikit-learn
+
+  </description>
+  <author>Vivian Chu</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/sklearn_suite</url>
+  <depend package="rospy"/>
+  <depend package="data_logger_bag"/>
+
+</package>
+
+
