@@ -14,6 +14,7 @@ import numpy as np
 import pandas as pd # for nan checking
 import cPickle
 from random import shuffle
+from collections import defaultdict
 from load_h5_dataset import load_data
 from learning_constants import * # imports all of the constants
 
@@ -102,6 +103,62 @@ def check_data(single_run):
             single_run[nan_idx] = single_run[new_idx]
 
     return single_run
+
+
+def load_specific_keys_gen(data_file, success_keys=None, fail_keys=None, dir_levels=None, max_level=None):
+    '''
+    This function is intended to be given an h5 file of the form
+    data[dir][dir][dir]..[runs] where the directories are
+    given by the directory_levels variable.
+
+    Returns a dictionary of the form
+    data[directories] = directory_levels
+    data[key] = data[runs]
+    data[filename] = filename
+
+    Note: the keys are the EXACT run names
+
+    WARNING: this does not check to make sure there are no
+             duplicates in the success and fail key list
+    '''
+
+    # Create the dictionary to store data
+    data = defaultdict(dict)
+
+    # Load the data and go through
+    if data_file.endswith(".h5"):
+        all_data = load_data(data_file, '', False, directories=dir_levels, max_level=max_level) 
+    elif data_file.endswith(".pkl"):
+        all_data = load_pkl(data_file)
+    else:
+        print "Error: Wrong file type passed into function.  Not .h5 or .pkl"
+
+    # go through the loaded data and split
+    filename_val = '_'.join(os.path.split(data_file)[-1].split('.')[0:1])
+    data[FILENAME_KEY] = filename_val # Store away the file we're working on
+    data[DIRECTORY_KEY] = dir_levels # Store away the directory structure
+
+    # Go through the directory_levels until we hit the runs
+    directories = list(dir_levels)
+    loaded_data = all_data
+    while directories:
+        loaded_data = loaded_data[directories.pop(0)] # Pop off the first item 
+
+    # Now we're at the level we're expecting
+    # and where we actually start cycling
+    for run_name in loaded_data:
+
+        # Parse the run number to pull out the ones for success and fail
+        if run_name in success_keys:
+            data[SUCCESS_KEY][run_name] = loaded_data[run_name]
+
+        # Check if we're running supervised or unsupervised
+        if fail_keys is not None:
+            # Parse the run number to pull out the ones for success and fail
+            if run_name in fail_keys:
+                data[FAIL_KEY][run_name] = loaded_data[run_name]
+
+    return data
 
 
 def load_specific_keys(data_file, success_keys, fail_keys):

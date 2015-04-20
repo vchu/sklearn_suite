@@ -10,9 +10,12 @@ import rospy
 
 from data_utilities import check_data # basic function that cleans data
 
+# Constants for feature extraction
+FT_NORM_FLAG = True
+DEFAULT_STATE_NAME = 'C6_FSM_state'
 
 
-def compute_features(all_data, skip_topics=['skill'], state_name='aff_haptic_state',ft_norm=ft_norm):
+def compute_features(all_data, skip_topics=['skill'], state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FLAG):
     '''
     Simple function that takes the data in the form of a python dictionary and puts it in a form
     that is easy to extend to features
@@ -21,6 +24,7 @@ def compute_features(all_data, skip_topics=['skill'], state_name='aff_haptic_sta
     Output: python dictionary of features
     '''
 
+    import pdb; pdb.set_trace()
     feature_store = defaultdict(dict)
 
     # Set type are "fail" or "success"

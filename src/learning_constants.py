@@ -11,6 +11,7 @@ import rospy
 # Constants for Data Loading
 #####################################################
 FILENAME_KEY = 'filename'
+DIRECTORY_KEY = 'directory_level'
 OBJECT_KEY = 'object'
 ACTION_KEY = 'action'
 RUN_KEY = 'numbers'
@@ -20,6 +21,7 @@ NAME_KEY = 'names'
 ####################################################
 # Constants for training and testing
 ####################################################
+DATA_KEY = 'data'
 SUCCESS_KEY = 'success'
 FAIL_KEY = 'fail'
 FEAT_KEY = 'features'
