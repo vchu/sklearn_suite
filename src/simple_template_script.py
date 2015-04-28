@@ -11,87 +11,75 @@ import os
 from learning_constants import *
 from learning_utilities import *
 from data_utilities import *
+from evaluation_utilities import *
 
 # Import specific constants to project here:
-from iros2015_constants import all_object_keys    
+from iros2015_constants import all_object_keys, USER_KEY, ALL_AFFORDANCES, AFF_FEATURES, OBJ_FEATURES, SOCIAL_STATE
 from default_features import *
 
-def load_train_test_pkl(pkl_file, set_name):
-    '''
-    Note: This function should be replaced whenever the data
-    and domain changes
-    '''
-    # parse the filename and determine what object we're working with
-    filename = os.path.split(pkl_file)[-1]
-    file_key = filename.split('.')[0]
-
-    # Pull out the training keys we want
-    success_keys = all_object_keys[file_key][TRAIN_KEY][set_name][SUCCESS_KEY]
-    fail_keys = all_object_keys[file_key][TRAIN_KEY][set_name][FAIL_KEY]
-    train_data = load_specific_keys(pkl_file, success_keys, fail_keys)
-
-    # Pull out the testing keys we want
-    success_keys = all_object_keys[file_key][TEST_KEY][SUCCESS_KEY]
-    fail_keys = all_object_keys[file_key][TEST_KEY][FAIL_KEY]
-    test_data = load_specific_keys(pkl_file, success_keys, fail_keys)
-
-    return (train_data, test_data)
-
-def train_single_pkl(data, set_name):
-
-    # Actually train?
-    compute_features(test)
-
-
-def get_features(data):
-
-    compute_features(data, skip_topics=[], state_name='social_affordance_state', ft_norm=False)
-
-
-
-
 def affordance_learning(objects, actions, train_types, data_file):
-
+    '''
+    This function is very specific to affordance learning
+    It calls generic functions throughout this and other utility files
+    '''
+    
     # Specific to affordances
     for obj in objects:
         for act in actions:
             affordance = '_'.join((obj,act)) 
-            print "Computing affordance %s:" % affordance 
+            
+            # Check if the combination actually exists
+            if affordance not in ALL_AFFORDANCES:
+                continue
 
-            # Cycle through each type 
+            print "\nComputing affordance %s:\n" % affordance 
+
+            # Cycle through each type  (self, guided, user)
             for train_type in train_types:
-                print "Training set %s" % train_type
+
+                print "Training set %s\n" % train_type
+
+                #################################################### 
+                # Pull out data and create features
+                ####################################################
+                # Create necessary information to extract data from h5
+                affordance = '_'.join((obj,act))
+
+                # Specify the depth (optional - entirely for speedup purposes)
+                if train_type == USER_KEY:
+                    train_dir_depth = 4
+                    directories = [obj, act]
+                else:
+                    train_dir_depth = 3
+                    directories = ['bag_files', train_type, obj, act]
+
+                # Pull out the keys that we need to load the dataset
+                success_keys = all_object_keys[affordance][TRAIN_KEY][train_type][SUCCESS_KEY]
+                fail_keys = all_object_keys[affordance][TRAIN_KEY][train_type][FAIL_KEY]
                 
-                # Pull out trian and test data
-                (train_data, test_data) = load_train_test(act, obj, train_type, data_file)
+                # Pull out train data
+                train_data = load_specific_keys_gen(data_file, success_keys=success_keys, fail_keys=fail_keys, dir_levels=directories, max_level=train_dir_depth)
 
                 # Pull out features
-                get_features(train_data)
-                #train_single_pkl(pkl_file, train_type)
+                print "Training with these features:"
+                print AFF_FEATURES
+                print OBJ_FEATURES
+                (train_feat, train_keys) = get_features(train_data, AFF_FEATURES, OBJ_FEATURES, state_name=SOCIAL_STATE)
+                ####################################################
+                # Train each model and save away
+                ####################################################
 
+                success_hmm = train_hmm_gridsearch(train_feat[FEAT_KEY][SUCCESS_KEY], cv=5, n_jobs=5)
+                title = affordance+'_'+train_type+ '_success.pkl'
+                cPickle.dump(success_hmm, open(os.path.join('hmms',title), "w"), cPickle.HIGHEST_PROTOCOL)
 
-
-def load_train_test(act, obj, set_type, data_file):
-
-    affordance = '_'.join((obj,act))
-    directories = ['bag_files', set_type, obj, act]
-    # Pull out the keys that we need to load the dataset
-    success_keys = all_object_keys[affordance][TRAIN_KEY][set_type][SUCCESS_KEY]
-    fail_keys = all_object_keys[affordance][TRAIN_KEY][set_type][FAIL_KEY]
-       
-    # Load datafile
-    train_data = load_specific_keys_gen(data_file, success_keys=success_keys, fail_keys=fail_keys, dir_levels=directories, max_level=3)
-
-    # Pull out the testing keys we want
-    success_keys = all_object_keys[affordance][TEST_KEY][SUCCESS_KEY]
-    fail_keys = all_object_keys[affordance][TEST_KEY][FAIL_KEY]
-    test_data = load_specific_keys_gen(data_file, success_keys=success_keys, fail_keys=fail_keys, dir_levels=directories, max_level=3)
-
-    return (train_data, test_data)
+                fail_hmm = train_hmm_gridsearch(train_feat[FEAT_KEY][FAIL_KEY], cv=5, n_jobs=5)
+                title = affordance+'_'+train_type+'_fail.pkl'
+                cPickle.dump(fail_hmm, open(os.path.join('hmms',title), "w"), cPickle.HIGHEST_PROTOCOL)
 
 def main():
 
-    ####################################
+    #####################################
     # Setup the parser and add arguments
     #####################################
     parser = argparse.ArgumentParser(description='Template scikit supervised training program') 
@@ -113,16 +101,13 @@ def main():
     #########################################
 
     # Check if we were given a file
-    if results.data_dir is None and results.data_file is None:
+    if results.data_file is None:
         parser.print_help()
         raise Exception("Error: no input file/directory given")
 
     # Check if we're doing affordance learning
     if results.objects:
-        if results.data_dir == None:
-            affordance_learning(results.objects, results.actions, results.train_types, results.data_file)
-        else:
-            affordance_learning_dir(results.objects, results.actions, results.train_types, results.data_dir)
+        affordance_learning(results.objects, results.actions, results.train_types, results.data_file)
 
 
 
@@ -131,33 +116,3 @@ if __name__== "__main__":
     main()
     print "done"
 
-
-
-
-'''
-OLD
-def affordance_learning_dir(objects, actions, train_types, data_dir):
-
-    # Specific to affordances
-    for obj in objects:
-        for act in actions:
-            affordance = '_'.join((obj,act)) 
-            pkl_file = os.path.join(data_dir, affordance+'.pkl')
-
-            # Check if combination exists
-            if(os.path.isfile(pkl_file)):
-                print "Computing pkl file %s:" % pkl_file
-
-                # Cycle through each type 
-                for train_type in train_types:
-                    print "Training set %s" % train_type
-                    
-                    # Pull out trian and test data
-                    (train_data, test_data) = load_train_test_pkl(pkl_file, train_type)
-
-                    # Pull out features
-                    get_features(train_data)
-                    #train_single_pkl(pkl_file, train_type)
-            else:
-                print "Affordance: %s doesn't exist" % pkl_file
-'''

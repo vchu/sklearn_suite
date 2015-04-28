@@ -11,6 +11,7 @@ import roslib; roslib.load_manifest("sklearn_suite")
 import rospy
 import os
 import numpy as np
+from pylab import *
 import pandas as pd # for nan checking
 import cPickle
 from random import shuffle
@@ -105,7 +106,8 @@ def check_data(single_run):
     return single_run
 
 
-def load_specific_keys_gen(data_file, success_keys=None, fail_keys=None, dir_levels=None, max_level=None):
+def load_specific_keys_gen(data_file, success_keys=None, fail_keys=None, 
+                           dir_levels=None, max_level=None, preload=False):
     '''
     This function is intended to be given an h5 file of the form
     data[dir][dir][dir]..[runs] where the directories are
@@ -120,10 +122,54 @@ def load_specific_keys_gen(data_file, success_keys=None, fail_keys=None, dir_lev
 
     WARNING: this does not check to make sure there are no
              duplicates in the success and fail key list
+
+    Note: Takes flag (preload) that allows you to pass in a loaded dataset
+          to allow for fast indexing of various key sets
+
     '''
 
     # Create the dictionary to store data
-    data = defaultdict(dict)
+    data = dict()
+    data[DATA_KEY] = defaultdict(dict)
+
+    # Load the data and go through
+    if (preload):
+        all_data = data_file # Passed in preloaded dataset
+        data[FILENAME_KEY] = data_file[FILENAME_KEY] # Store away the file we're working on
+        data[DIRECTORY_KEY] = data_file[DIRECTORY_KEY] # Store away the directory structure
+    else:
+        # Load from the h5 file
+        all_data = load_database_segment(data_file, dir_levels=dir_levels, max_level=max_level)
+
+        # go through the loaded data and split
+        filename_val = '_'.join(os.path.split(data_file)[-1].split('.')[0:1])
+        data[FILENAME_KEY] = filename_val # Store away the file we're working on
+        data[DIRECTORY_KEY] = dir_levels # Store away the directory structure
+
+    # Remove the extra data
+    del all_data[FILENAME_KEY]
+    del all_data[DIRECTORY_KEY]
+
+    # Pull out all of the sub dictionaries that directly relate to the given dir_level
+    stored_directories = []
+    find_directory(all_data, dir_levels, True, stored_directories)
+
+    # Now cycle through each of the directories to pull out a merged dataset
+    for run_dict in stored_directories:
+        pull_keys(run_dict, data, success_keys, fail_keys)
+
+    # Put it back in
+    all_data[FILENAME_KEY] = data[FILENAME_KEY]
+    all_data[DIRECTORY_KEY] = data[DIRECTORY_KEY]
+
+    return data
+
+
+def load_database_segment(data_file, dir_levels=None, max_level=None):
+
+    # Create the dictionary to store data
+    data = dict()
+    data[DATA_KEY] = defaultdict(dict)
 
     # Load the data and go through
     if data_file.endswith(".h5"):
@@ -135,14 +181,39 @@ def load_specific_keys_gen(data_file, success_keys=None, fail_keys=None, dir_lev
 
     # go through the loaded data and split
     filename_val = '_'.join(os.path.split(data_file)[-1].split('.')[0:1])
-    data[FILENAME_KEY] = filename_val # Store away the file we're working on
-    data[DIRECTORY_KEY] = dir_levels # Store away the directory structure
+    all_data[FILENAME_KEY] = filename_val # Store away the file we're working on
+    all_data[DIRECTORY_KEY] = dir_levels # Store away the directory structure
 
-    # Go through the directory_levels until we hit the runs
-    directories = list(dir_levels)
-    loaded_data = all_data
-    while directories:
-        loaded_data = loaded_data[directories.pop(0)] # Pop off the first item 
+    return all_data
+
+def find_directory(loaded_data, dir_levels, searching, stored_directories):
+
+    # While we still have directories to find
+    if searching:
+        cur_dir = dir_levels[0]
+        if cur_dir in loaded_data:
+            find_directory(loaded_data, dir_levels, False, stored_directories)
+            #loaded_data = loaded_data[directories.pop(0)] # Pop off the first item 
+            
+        else:
+            # If not found - then recurse down
+            for val in loaded_data:
+                find_directory(loaded_data[val], dir_levels, True, stored_directories)
+
+    else:
+       
+        # We found it and now just go down and pull it out 
+        directories = list(dir_levels)
+        while directories:
+            loaded_data = loaded_data[directories.pop(0)] # Pop off the first item 
+  
+        stored_directories.append(loaded_data)
+
+def pull_keys(loaded_data, data, success_keys, fail_keys):
+    '''
+    Helper that actually loads the data when passed in the dictionary
+    It will store into another dictionary
+    '''
 
     # Now we're at the level we're expecting
     # and where we actually start cycling
@@ -150,15 +221,14 @@ def load_specific_keys_gen(data_file, success_keys=None, fail_keys=None, dir_lev
 
         # Parse the run number to pull out the ones for success and fail
         if run_name in success_keys:
-            data[SUCCESS_KEY][run_name] = loaded_data[run_name]
+            data[DATA_KEY][SUCCESS_KEY][run_name] = loaded_data[run_name]
 
         # Check if we're running supervised or unsupervised
         if fail_keys is not None:
+
             # Parse the run number to pull out the ones for success and fail
             if run_name in fail_keys:
-                data[FAIL_KEY][run_name] = loaded_data[run_name]
-
-    return data
+                data[DATA_KEY][FAIL_KEY][run_name] = loaded_data[run_name]
 
 
 def load_specific_keys(data_file, success_keys, fail_keys):

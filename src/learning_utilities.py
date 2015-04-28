@@ -26,7 +26,7 @@ DEFAULT_JOBS = 1
 DEFAULT_N_COMPONENTS = range(2,7)
 DEFAULT_VERBOSE = 5 # 5 is maximum
 DEFAULT_ITER = [1000]
-DEFAULT_COVAR = 'full' # options: ['diag','tied','spherical','full']
+DEFAULT_COVAR = ['diag','full'] # options: ['diag','tied','spherical','full']
 
 # For SVMs
 DEFAULT_SVM_C = np.linspace(1,1e6,100)
@@ -34,7 +34,7 @@ DEFAULT_SVM_KERNELS = ['linear','poly','rbf','sigmoid']
 DEFAULT_SVM_PENALTY = ['l1','l2']
 DEFAULT_SVM_WEIGHT = None # option: 'auto' to not have equal weight
 DEFAULT_SVM_PROB = True
-DEFAULT_SVM_LOSS = 'hinge' # option: 'square_hinge'
+DEFAULT_SVM_LOSS = ['hinge'] # option: 'square_hinge'
 DEFAULT_SVM_DUAL = False # perform in the dual space
  
 def _cv_setup_helper(cv, num_train, indices=None):
@@ -82,9 +82,9 @@ def prepare_data(train):
     # Get data ready
     train_X = []
     train_Y = []
-    for key in train:
-        train_X.append(train[key][FEATURE_LOC])
-        train_Y.append(train[key][LABEL_LOC])
+    for i in xrange(len(train)):
+        train_X.append(train[i][FEATURE_LOC])
+        train_Y.append(train[i][LABEL_LOC])
 
     return (train_X, train_Y)
 
@@ -177,7 +177,7 @@ def train_hmm_gridsearch(train, cv=DEFAULT_N_FOLD, gmm=False,
     parameters = { 
                   'n_iter':n_iter,
                   'n_components':n_components,
-                  'covariance_type':covariance_type,
+                  #'covariance_type':covariance_type,
                   }   
 
     # If we want to use the GMMHMM classifier or just the vanilla GaussianHMM
@@ -185,7 +185,7 @@ def train_hmm_gridsearch(train, cv=DEFAULT_N_FOLD, gmm=False,
         clf = GMMHMMClassifier(n_mix=gmm)
         
     else:
-        clf = GaussianHMMClassifier()
+        clf = GaussianHMMClassifier(covariance_type='full')
 
     # Actually execute the search
     return execute_grid_search(train, cv, clf, parameters, n_jobs)

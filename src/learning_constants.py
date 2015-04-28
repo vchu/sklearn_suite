@@ -24,7 +24,10 @@ NAME_KEY = 'names'
 DATA_KEY = 'data'
 SUCCESS_KEY = 'success'
 FAIL_KEY = 'fail'
+FEAT_DICT_KEY = 'feat_dict'
 FEAT_KEY = 'features'
+MERGED_FEAT = 'merged_features'
+MERGED_FEAT_KEYS = 'merged_feat_keys'
 LABEL_KEY = 'labels'
 RUN_KEY = 'ID'
 CV_KEY = 'grid'
@@ -34,6 +37,18 @@ TEST_KEY = 'test'
 ALL_KEY = 'all'
 FEATURE_LOC = 0
 LABEL_LOC = 1
+SUCCESS_VAL = 0
+FAIL_VAL = 1
+
+# For evaluation
+PREDICTY_KEY = 'predict_Y'
+TESTY_KEY = 'test_Y'
+PRECISION = 'precision'
+RECALL = 'recall'
+F1 = 'f1'
+M_PRECISION = 'mean_precision'
+M_RECALL = 'mean_recall'
+M_F1 = 'mean_f1'
 
 ####################################################
 # Constants that are feature specific
