@@ -110,6 +110,20 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
                 run_dict[arm+'_joint_position_future'] = np.insert(np.delete(run_dict[arm+'_joint_position'],0,axis=0),-1,0,axis=0)
 
                 ########################################################
+                # Hand Joint level (per joint position/orientation/etc.)
+                ########################################################
+
+                # Get features related to the hand
+                hand_joints = [j for j in run_data['humanoid_state']['name'] if arm+'_hand' in j]
+                hand_idx = np.in1d(run_data['humanoid_state']['name'], np.array(hand_joints))
+
+                # Store off the hand features
+                run_dict[arm+'_hand_joint_position'] =  check_data(run_data['humanoid_state']['position'][:,hand_idx])
+                run_dict[arm+'_hand_joint_effort'] =  check_data(run_data['humanoid_state']['effort'][:,hand_idx])
+                run_dict[arm+'_hand_joint_velocity'] =  check_data(run_data['humanoid_state']['velocity'][:,hand_idx])
+                run_dict[arm+'_hand_joint_name'] =  check_data(run_data['humanoid_state']['name'][:,hand_idx])
+
+                ########################################################
                 # End Effector (EEF)  Features
                 ########################################################
 
