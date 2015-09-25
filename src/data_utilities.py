@@ -106,7 +106,7 @@ def check_data(single_run):
     return single_run
 
 
-def load_specific_keys_gen(data_file, success_keys=None, fail_keys=None, 
+def load_specific_keys_gen(data_input, success_keys=None, fail_keys=None, 
                            dir_levels=None, max_level=None, preload=False):
     '''
     This function is intended to be given an h5 file of the form
@@ -128,48 +128,68 @@ def load_specific_keys_gen(data_file, success_keys=None, fail_keys=None,
 
     '''
 
-    # Create the dictionary to store data
-    data = dict()
-    data[DATA_KEY] = defaultdict(dict)
-
-    # Load the data and go through
-    if (preload):
-        all_data = data_file # Passed in preloaded dataset
-        data[FILENAME_KEY] = data_file[FILENAME_KEY] # Store away the file we're working on
-        data[DIRECTORY_KEY] = data_file[DIRECTORY_KEY] # Store away the directory structure
+    # Check if we had already preloaded it and passed in the data rather than file name
+    if not preload:
+        all_data = load_database_segment(data_input, dir_levels=dir_levels, max_level=max_level)
     else:
-        # Load from the h5 file
-        all_data = load_database_segment(data_file, dir_levels=dir_levels, max_level=max_level)
+        all_data = data_input
 
-        # go through the loaded data and split
-        filename_val = '_'.join(os.path.split(data_file)[-1].split('.')[0:1])
-        data[FILENAME_KEY] = filename_val # Store away the file we're working on
-        data[DIRECTORY_KEY] = dir_levels # Store away the directory structure
+    # TODO: Actually do something with multiple segments - currently keeps the newest
+    # Cycle through all of the files
+    for data_segment in all_data:
 
-    # Remove the extra data
-    del all_data[FILENAME_KEY]
-    del all_data[DIRECTORY_KEY]
+        # Create the dictionary to store data
+        data = dict()
+        data[DATA_KEY] = defaultdict(dict)
 
-    # Pull out all of the sub dictionaries that directly relate to the given dir_level
-    stored_directories = []
-    find_directory(all_data, dir_levels, True, stored_directories)
+        # Load the data and go through
+        if (preload):
+            data[FILENAME_KEY] = data_segment[FILENAME_KEY] # Store away the file we're working on
+            data[DIRECTORY_KEY] = data_segment[DIRECTORY_KEY] # Store away the directory structure
+        else:
+            # go through the loaded data and split
+            filename_val = '_'.join(os.path.split(data_file)[-1].split('.')[0:1])
+            data[FILENAME_KEY] = filename_val # Store away the file we're working on
+            data[DIRECTORY_KEY] = dir_levels # Store away the directory structure
 
-    # Now cycle through each of the directories to pull out a merged dataset
-    for run_dict in stored_directories:
-        pull_keys(run_dict, data, success_keys, fail_keys)
+        # Remove the extra data
+        del data_segment[FILENAME_KEY]
+        del data_segment[DIRECTORY_KEY]
 
-    # Put it back in
-    all_data[FILENAME_KEY] = data[FILENAME_KEY]
-    all_data[DIRECTORY_KEY] = data[DIRECTORY_KEY]
+        # Pull out all of the sub dictionaries that directly relate to the given dir_level
+        stored_directories = []
+        find_directory(data_segment, dir_levels, True, stored_directories)
+
+        # Now cycle through each of the directories to pull out a merged dataset
+        for run_dict in stored_directories:
+            pull_keys(run_dict, data, success_keys, fail_keys)
+
+        # Put it back in
+        data_segment[FILENAME_KEY] = data[FILENAME_KEY]
+        data_segment[DIRECTORY_KEY] = data[DIRECTORY_KEY]
 
     return data
 
 
 def load_database_segment(data_file, dir_levels=None, max_level=None):
+    '''
+    Will load multiple data files if needed
+    '''
 
-    # Create the dictionary to store data
-    data = dict()
-    data[DATA_KEY] = defaultdict(dict)
+    data_segments = []
+    # Check if we have multiple files
+    if type(data_file) is list:
+        # load multiple data segments
+        for dfile in data_file:
+            data_segments.append(load_single_database_segment(dfile, dir_levels=dir_levels, max_level=max_level) )
+
+    else:
+        data_segments.append(load_single_database_segment(data_file, dir_levels=dir_levels, max_level=max_level) )
+
+    return data_segments
+
+
+def load_single_database_segment(data_file, dir_levels=None, max_level=None):
 
     # Load the data and go through
     if data_file.endswith(".h5"):
@@ -185,6 +205,7 @@ def load_database_segment(data_file, dir_levels=None, max_level=None):
     all_data[DIRECTORY_KEY] = dir_levels # Store away the directory structure
 
     return all_data
+
 
 def find_directory(loaded_data, dir_levels, searching, stored_directories):
 

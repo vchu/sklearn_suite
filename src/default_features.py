@@ -103,7 +103,7 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
                 run_dict[arm+'_joint_position'] =  check_data(run_data['humanoid_state']['position'][:,arm_idx])
                 run_dict[arm+'_joint_effort'] =  check_data(run_data['humanoid_state']['effort'][:,arm_idx])
                 run_dict[arm+'_joint_velocity'] =  check_data(run_data['humanoid_state']['velocity'][:,arm_idx])
-                run_dict[arm+'_joint_name'] =  check_data(run_data['humanoid_state']['name'][:,arm_idx])
+                run_dict[arm+'_joint_name'] =  check_data(run_data['humanoid_state']['name'][arm_idx])
 
                 # Create a set of "future" positions to train on
                 # Pop off the front to shift and then append 0 to the end?
@@ -121,7 +121,7 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
                 run_dict[arm+'_hand_joint_position'] =  check_data(run_data['humanoid_state']['position'][:,hand_idx])
                 run_dict[arm+'_hand_joint_effort'] =  check_data(run_data['humanoid_state']['effort'][:,hand_idx])
                 run_dict[arm+'_hand_joint_velocity'] =  check_data(run_data['humanoid_state']['velocity'][:,hand_idx])
-                run_dict[arm+'_hand_joint_name'] =  check_data(run_data['humanoid_state']['name'][:,hand_idx])
+                run_dict[arm+'_hand_joint_name'] =  check_data(run_data['humanoid_state']['name'][hand_idx])
 
                 ########################################################
                 # End Effector (EEF)  Features
@@ -226,7 +226,7 @@ def get_features(data, features, object_features, state_name=None, ft_norm=False
 
     Note: ALL feature extraction functions must adhere to the output of this function
     '''
-    
+   
     # Check if we have a custom state name
     if state_name is None:
         all_features = compute_features(data, ft_norm=ft_norm)
