@@ -16,6 +16,7 @@ OBJECT_KEY = 'object'
 ACTION_KEY = 'action'
 RUN_KEY = 'numbers'
 NAME_KEY = 'names'
+ALL_USER_KEY = 'all_users'
 
 
 ####################################################
