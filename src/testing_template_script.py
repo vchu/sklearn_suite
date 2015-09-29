@@ -14,7 +14,8 @@ from data_utilities import *
 from evaluation_utilities import *
 
 # Import specific constants to project here:
-from iros2015_constants import all_object_keys, USER_KEY, AFF_FEATURES, OBJ_FEATURES, SOCIAL_STATE, ALL_AFFORDANCES
+from constants.global_key_storage import *
+from constants.HRI2016_constants import train_test_set, test_set_only, ALL_AFFORDANCES
 from default_features import *
 
 def extract_affordance_database(database, filename):
@@ -47,7 +48,8 @@ def extract_affordance_test_set(test_data, filename, test_set_num):
 
     return test_feat
 
-def testing_classifier(database, directory):
+
+def testing_classifier(database, directory, preload=False):
 
     done_files = []
     results = dict() # Store the results of the testing
@@ -93,10 +95,13 @@ def testing_classifier(database, directory):
         ##########################################
         # Load the data to test features on
         ##########################################
-       
-        test_set = 0 
-        test_data = extract_affordance_database(database, filename_specific)
-        test_feats = extract_affordance_test_set(test_data, filename_specific, test_set)
+
+        if preload:
+            test_feats = load_pkl(database)
+        else:
+            test_set = 0 
+            test_data = extract_affordance_database(database, filename_specific)
+            test_feats = extract_affordance_test_set(test_data, filename_specific, test_set)
          
         ##########################################
         # Test the classifier
@@ -143,6 +148,7 @@ def main():
     parser.add_argument('-d', action='store', dest='trained_dir', help='Location to directory of trained pkl files', default=None)
     parser.add_argument('-i', action='store', dest='data_file', help='Location to data in h5 format', default=None)
     parser.add_argument('-f', action='store', dest='results_file', help='Location to computed results in pkl format', default=None)
+    parser.add_argument('-t', action='store', dest='test_feat', help='Location to test features in pkl format', default=None)
 
     # Retreive arguments
     results = parser.parse_args()
@@ -155,13 +161,18 @@ def main():
         print_results(results.results_file)
 
     else:
-        # Check if we were given a file
-        if results.trained_dir is None or results.data_file is None:
-            parser.print_help()
-            raise Exception("Error: no input training directory or h5 database given")
 
-        testing_classifier(results.data_file, results.trained_dir)
+        if results.trained_dir is not None:
+            if results.test_feat is not None:
+                testing_classifier(results.test_feat, results.trained_dir, preload=True)
 
+            else:
+                if results.data_file is None: 
+                    parser.print_help()
+                    raise Exception("Error: no input training directory or h5 database given")
+
+                else:
+                    testing_classifier(results.data_file, results.trained_dir)
 
 
 
