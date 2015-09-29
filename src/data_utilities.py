@@ -134,23 +134,25 @@ def load_specific_keys_gen(data_input, success_keys=None, fail_keys=None,
     else:
         all_data = data_input
 
-    # TODO: Actually do something with multiple segments - currently keeps the newest
+    # Create the dictionary to store data
+    data = dict()
+    data[DATA_KEY] = defaultdict(dict)
+    data[FILENAME_KEY] = []
+    data[DIRECTORY_KEY] = []
+
+    # TODO: Confirm that this actually works at loading from different data segments
     # Cycle through all of the files
     for data_segment in all_data:
 
-        # Create the dictionary to store data
-        data = dict()
-        data[DATA_KEY] = defaultdict(dict)
-
         # Load the data and go through
         if (preload):
-            data[FILENAME_KEY] = data_segment[FILENAME_KEY] # Store away the file we're working on
-            data[DIRECTORY_KEY] = data_segment[DIRECTORY_KEY] # Store away the directory structure
+            data[FILENAME_KEY].append(data_segment[FILENAME_KEY]) # Store away the file we're working on
+            data[DIRECTORY_KEY].append(data_segment[DIRECTORY_KEY]) # Store away the directory structure
         else:
             # go through the loaded data and split
             filename_val = '_'.join(os.path.split(data_file)[-1].split('.')[0:1])
-            data[FILENAME_KEY] = filename_val # Store away the file we're working on
-            data[DIRECTORY_KEY] = dir_levels # Store away the directory structure
+            data[FILENAME_KEY].append(filename_val) # Store away the file we're working on
+            data[DIRECTORY_KEY].append(dir_levels) # Store away the directory structure
 
         # Remove the extra data
         del data_segment[FILENAME_KEY]

@@ -39,6 +39,9 @@ FEATURE_LOC = 0
 LABEL_LOC = 1
 SUCCESS_VAL = 0
 FAIL_VAL = 1
+PERCENTAGE_SPLIT = 'percentage' # split dataset by percntage (usually 80/20)
+EQUAL_SPLIT = 'equal' # split dataset equally
+
 
 # For evaluation
 PREDICTY_KEY = 'predict_Y'
