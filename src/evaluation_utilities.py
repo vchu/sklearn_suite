@@ -10,7 +10,7 @@ import rospy
 import numpy as np
 from collections import defaultdict
 from hmm_custom import GaussianHMMClassifier, GMMHMMClassifier
-from sklearn.metrics import classification_report, f1_score, precision_score, recall_score
+from sklearn.metrics import classification_report, f1_score, precision_score, recall_score, accuracy_score
 from learning_constants import * # imports all of the constants
 from learning_utilities import prepare_data
 
@@ -101,25 +101,39 @@ def compute_results(results):
 
         # Pull out the data for that file 
         fileset = results[filename]
+        fileset_names = fileset.keys()
+        fileset_names.sort()
 
         precision_arr = []
         recall_arr = []
         f1_arr = []
+        print '###############################################'
         print filename
-        for testset in fileset:
+        print '###############################################'
+        
+        for testset in fileset_names:
+ 
             # Pull out predicted_Y
             predict_Y = fileset[testset][PREDICTY_KEY] 
 
             # Pull out test_Y
             test_Y = fileset[testset][TESTY_KEY] 
 
-            print predict_Y
-            print test_Y
+            print '\npredict: '+str(predict_Y)
+            print 'actual: %s\n' % str(test_Y)
+
             # Compute F1, precision, recall 
+            # if we want weighted...
+            #precision = precision_score(test_Y, predict_Y, pos_label=None, average='weighted')
+            #recall = recall_score(test_Y, predict_Y, pos_label=None, average='weighted')
+            #f1 = f1_score(test_Y, predict_Y, pos_label=None, average='weighted')
             precision = precision_score(test_Y, predict_Y)
             recall = recall_score(test_Y, predict_Y)
             f1 = f1_score(test_Y, predict_Y)
 
+            print classification_report(test_Y, predict_Y)
+            print 'accuracy: %f\n' % accuracy_score(test_Y, predict_Y)
+    
             # Store away
             results[filename][testset][PRECISION] = precision
             results[filename][testset][RECALL] = recall
@@ -142,7 +156,9 @@ def print_avg_results_latex(results):
     '''
 
     # Go through each skill and print them in latex table format
-    for filename in results:
+    filenames = results.keys()
+    filenames.sort()
+    for filename in filenames:
 
         # Pull out the data for that file 
         fileset = results[filename]

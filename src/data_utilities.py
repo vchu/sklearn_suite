@@ -7,6 +7,7 @@
 #
 #
 
+from __future__ import print_function
 import roslib; roslib.load_manifest("sklearn_suite")
 import rospy
 import os
@@ -105,6 +106,65 @@ def check_data(single_run):
 
     return single_run
 
+def check_keys(data, success_keys, fail_keys):
+    '''
+    Helper function that looks at the number of keys extracted and number
+    of keys requested
+    '''
+
+    key_types = [SUCCESS_KEY, FAIL_KEY]
+    for sf_key in key_types:
+        if len(set(data[DATA_KEY][sf_key].keys())) is not eval('len(set('+sf_key+'_keys))'):
+            print('\n################################################################', file=sys.stderr)
+            print('WARNING: Number of '+sf_key+' keys does not match extracted runs', file=sys.stderr)
+            print('There should be: %d' % eval('len('+sf_key+'_keys)'), file=sys.stderr)
+            print('There are: %d\n' % len(data[DATA_KEY][sf_key]) , file=sys.stderr)
+            print('################################################################\n', file=sys.stderr)
+            import pdb; pdb.set_trace()
+        else:
+            print('Keys in %s loaded correctly' % sf_key)
+
+def clean_keys(keys):
+
+    key_list = filter(None, keys)
+
+    return key_list
+
+def load_specific_keys_low_mem(data_input, success_keys=None, fail_keys=None, 
+                           dir_levels=None, max_level=None, preload=False):
+    '''
+    This function is identical in functionality to load_specific_keys_gen, but
+    It loads each database individually and discards afterwards to ensure
+    that the computer memory is not overloaded holding each of the
+    dictionaries of the entire dataset
+    ''' 
+
+    # Create the dictionary to store data
+    data = dict()
+    data[DATA_KEY] = defaultdict(dict)
+    data[FILENAME_KEY] = []
+    data[DIRECTORY_KEY] = []
+
+    success_keys = clean_keys(success_keys)
+    fail_keys = clean_keys(fail_keys)
+
+    for data_file in data_input:
+
+        # Load the single file - assume not preloaded
+        all_data = load_database_segment(data_file, dir_levels=dir_levels, max_level=max_level)
+
+        # Cycle through all of the files
+        data_segment = all_data[0] # Assume we're only loading a single file at a time
+
+        load_specific_keys_single(data_segment, data, data_file=data_file, dir_levels=dir_levels,
+                                  success_keys=success_keys, fail_keys=fail_keys, preload=preload)
+
+    # Check if we have all of the keys loaded
+    check_keys(data, success_keys, fail_keys)
+
+    return data
+    
+
 
 def load_specific_keys_gen(data_input, success_keys=None, fail_keys=None, 
                            dir_levels=None, max_level=None, preload=False):
@@ -128,6 +188,9 @@ def load_specific_keys_gen(data_input, success_keys=None, fail_keys=None,
 
     '''
 
+    success_keys = clean_keys(success_keys)
+    fail_keys = clean_keys(fail_keys)
+
     # Check if we had already preloaded it and passed in the data rather than file name
     if not preload:
         all_data = load_database_segment(data_input, dir_levels=dir_levels, max_level=max_level)
@@ -140,37 +203,45 @@ def load_specific_keys_gen(data_input, success_keys=None, fail_keys=None,
     data[FILENAME_KEY] = []
     data[DIRECTORY_KEY] = []
 
-    # TODO: Confirm that this actually works at loading from different data segments
     # Cycle through all of the files
     for data_segment in all_data:
 
-        # Load the data and go through
-        if (preload):
-            data[FILENAME_KEY].append(data_segment[FILENAME_KEY]) # Store away the file we're working on
-            data[DIRECTORY_KEY].append(data_segment[DIRECTORY_KEY]) # Store away the directory structure
-        else:
-            # go through the loaded data and split
-            filename_val = '_'.join(os.path.split(data_file)[-1].split('.')[0:1])
-            data[FILENAME_KEY].append(filename_val) # Store away the file we're working on
-            data[DIRECTORY_KEY].append(dir_levels) # Store away the directory structure
+        load_specific_keys_single(data_segment, data, data_file=data_input, dir_levels=dir_levels,
+                                   success_keys=success_keys, fail_keys=fail_keys, preload=preload)
 
-        # Remove the extra data
-        del data_segment[FILENAME_KEY]
-        del data_segment[DIRECTORY_KEY]
-
-        # Pull out all of the sub dictionaries that directly relate to the given dir_level
-        stored_directories = []
-        find_directory(data_segment, dir_levels, True, stored_directories)
-
-        # Now cycle through each of the directories to pull out a merged dataset
-        for run_dict in stored_directories:
-            pull_keys(run_dict, data, success_keys, fail_keys)
-
-        # Put it back in
-        data_segment[FILENAME_KEY] = data[FILENAME_KEY]
-        data_segment[DIRECTORY_KEY] = data[DIRECTORY_KEY]
+    # Check if we have all of the keys loaded
+    check_keys(data, success_keys, fail_keys)
 
     return data
+
+def load_specific_keys_single(data_segment, data_store, data_file=None, dir_levels=None,
+                              success_keys=None, fail_keys=None, preload=False):
+
+    # Load the data and go through
+    if (preload):
+        data_store[FILENAME_KEY].append(data_segment[FILENAME_KEY]) # Store away the file we're working on
+        data_store[DIRECTORY_KEY].append(data_segment[DIRECTORY_KEY]) # Store away the directory structure
+    else:
+        # go through the loaded data and split
+        filename_val = '_'.join(os.path.split(data_file)[-1].split('.')[0:1])
+        data_store[FILENAME_KEY].append(filename_val) # Store away the file we're working on
+        data_store[DIRECTORY_KEY].append(dir_levels) # Store away the directory structure
+
+    # Remove the extra data
+    del data_segment[FILENAME_KEY]
+    del data_segment[DIRECTORY_KEY]
+
+    # Pull out all of the sub dictionaries that directly relate to the given dir_level
+    stored_directories = []
+    find_directory(data_segment, dir_levels, True, stored_directories)
+
+    # Now cycle through each of the directories to pull out a merged dataset
+    for run_dict in stored_directories:
+        pull_keys(run_dict, data_store, success_keys, fail_keys)
+
+    # Put it back in
+    data_segment[FILENAME_KEY] = data_store[FILENAME_KEY]
+    data_segment[DIRECTORY_KEY] = data_store[DIRECTORY_KEY]
 
 
 def load_database_segment(data_file, dir_levels=None, max_level=None):
@@ -199,7 +270,7 @@ def load_single_database_segment(data_file, dir_levels=None, max_level=None):
     elif data_file.endswith(".pkl"):
         all_data = load_pkl(data_file)
     else:
-        print "Error: Wrong file type passed into function.  Not .h5 or .pkl"
+        print("Error: Wrong file type passed into function.  Not .h5 or .pkl")
 
     # go through the loaded data and split
     filename_val = '_'.join(os.path.split(data_file)[-1].split('.')[0:1])
@@ -284,7 +355,7 @@ def load_specific_keys(data_file, success_keys, fail_keys):
     elif data_file.endswith(".pkl"):
         all_data = load_pkl(data_file)
     else:
-        print "Error: Wrong file type passed into function.  Not .h5 or .pkl"
+        print("Error: Wrong file type passed into function.  Not .h5 or .pkl")
 
     # go through the loaded data and split
     filename_val = '_'.join(os.path.split(data_file)[-1].split('.')[0:1])
