@@ -22,8 +22,8 @@ class GMMHMMClassifier(sklearn.hmm.GMMHMM):
                  params=params,
                  init_params=init_params)
 
-        #self.n_symbols = n_symbols
-        #self._covariance_type = covariance_type
+        self.n_symbols = n_symbols
+        self._covariance_type = covariance_type
         
     def fit(self, X, y=None, **kwargs):    
         if "n_symbols" in kwargs:
@@ -77,7 +77,7 @@ class GaussianHMMClassifier(sklearn.hmm.GaussianHMM):
                           covariance_type=covariance_type)
 
         #self.n_symbols = n_symbols
-        self._covariance_type = covariance_type
+        #self._covariance_type = covariance_type
         
     def fit(self, X, y=None, **kwargs):    
         if "n_symbols" in kwargs:

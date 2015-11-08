@@ -33,6 +33,11 @@ def compute_keys(keys, train_size=0.8, randomize=True):
     Ouptut: Train/Test keys in list form
     '''
 
+    # TODO: More sophisticated version of making sure duplicates are not
+    # Put into both train and test - but also not removed
+    # Currently - they are just removed to make an unique set
+    keys = np.unique(keys).tolist()
+
     # Create keys
     train_size_percentage = train_size
     total_runs = len(keys)

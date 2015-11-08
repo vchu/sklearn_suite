@@ -12,6 +12,7 @@ import rospy
 import numpy as np
 from collections import defaultdict
 from sklearn.cross_validation import LeaveOneOut, LeavePOut
+from sklearn.metrics import f1_score
 from hmm_custom import GaussianHMMClassifier, GMMHMMClassifier
 from sklearn.grid_search import GridSearchCV
 from learning_constants import * # imports all of the constants
@@ -24,9 +25,11 @@ DEFAULT_JOBS = 1
 
 # For HMMs
 DEFAULT_N_COMPONENTS = range(2,7)
+#DEFAULT_N_COMPONENTS = [2, 5, 10, 15, 20, 25, 30, 35, 40, 45]
 DEFAULT_VERBOSE = 5 # 5 is maximum
-DEFAULT_ITER = [1000]
-DEFAULT_COVAR = ['diag','full'] # options: ['diag','tied','spherical','full']
+DEFAULT_ITER = [2000]
+#DEFAULT_COVAR = ['diag','full'] # options: ['diag','tied','spherical','full']
+DEFAULT_COVAR = ['diag','tied','spherical','full']
 
 # For SVMs
 DEFAULT_SVM_C = np.linspace(1,1e6,100)
@@ -37,7 +40,7 @@ DEFAULT_SVM_PROB = True
 DEFAULT_SVM_LOSS = ['hinge'] # option: 'square_hinge'
 DEFAULT_SVM_DUAL = False # perform in the dual space
  
-def _cv_setup_helper(cv, num_train, indices=None):
+def _cv_setup_helper(cv, num_train, indices=None, p=DEFAULT_P):
     '''
     Helper to training grid search methods that actually setup
     the cv used
@@ -58,11 +61,11 @@ def _cv_setup_helper(cv, num_train, indices=None):
     # Check if we're doing loocv or lpout cv
     elif cv == 'loocv':
         print 'Performing LOOCV'
-        cv = sklearn.cross_validation.LeavePOut(n=num_train, p=1, indices=indices);
+        cv = LeavePOut(n=num_train, p=1, indices=indices);
 
     elif cv == 'lPOut':
         print 'Performing LPOutCV: %d' % p
-        cv = sklearn.cross_validation.LeavePOut(n=num_train, p=p, indices=indices);
+        cv = LeavePOut(n=num_train, p=p, indices=indices);
 
     # Check if passed in an number to do n-fold CV
     elif isinstance(cv, int):
@@ -126,11 +129,12 @@ def execute_grid_search(train, cv, model, parameters, n_jobs):
                         parameters,
                         n_jobs = n_jobs,
                         cv=cv,
-                        verbose =DEFAULT_VERBOSE 
+                        verbose =DEFAULT_VERBOSE,
+                        #scoring=f1_score
                         )
  
     # Fit the data
-    grid.fit(train_X, train_Y) 
+    grid.fit(train_X, y=train_Y) 
 
     # Pull out the best HMM
     best_clf = grid.best_estimator_
@@ -177,7 +181,7 @@ def train_hmm_gridsearch(train, cv=DEFAULT_N_FOLD, gmm=False,
     parameters = { 
                   'n_iter':n_iter,
                   'n_components':n_components,
-                  #'covariance_type':covariance_type,
+                  'covariance_type':covariance_type,
                   }   
 
     # If we want to use the GMMHMM classifier or just the vanilla GaussianHMM
