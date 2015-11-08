@@ -24,12 +24,14 @@ DEFAULT_P = 2
 DEFAULT_JOBS = 1
 
 # For HMMs
-DEFAULT_N_COMPONENTS = range(2,7)
-#DEFAULT_N_COMPONENTS = [2, 5, 10, 15, 20, 25, 30, 35, 40, 45]
+#DEFAULT_N_COMPONENTS = range(2,7)
+DEFAULT_N_COMPONENTS = [2, 5, 10, 15, 20, 25, 30, 35, 40, 45]
 DEFAULT_VERBOSE = 5 # 5 is maximum
 DEFAULT_ITER = [2000]
+DEFAULT_COVAR = ['diag'] # options: ['diag','tied','spherical','full']
+#DEFAULT_COVAR = ['diag','tied'] # options: ['diag','tied','spherical','full']
 #DEFAULT_COVAR = ['diag','full'] # options: ['diag','tied','spherical','full']
-DEFAULT_COVAR = ['diag','tied','spherical','full']
+#DEFAULT_COVAR = ['diag','tied','spherical','full']
 
 # For SVMs
 DEFAULT_SVM_C = np.linspace(1,1e6,100)
