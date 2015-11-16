@@ -94,7 +94,7 @@ def get_mean_likelihood(hmm, classifier_dict):
 
 
 
-def compute_results(results):
+def compute_results(results, pos_label=0):
 
     # Go through each skill and print them in latex table format
     for filename in results:
@@ -107,12 +107,13 @@ def compute_results(results):
         precision_arr = []
         recall_arr = []
         f1_arr = []
+        acc_arr = []
         print '###############################################'
         print filename
         print '###############################################'
         
         for testset in fileset_names:
- 
+
             # Pull out predicted_Y
             predict_Y = fileset[testset][PREDICTY_KEY] 
 
@@ -127,25 +128,29 @@ def compute_results(results):
             #precision = precision_score(test_Y, predict_Y, pos_label=None, average='weighted')
             #recall = recall_score(test_Y, predict_Y, pos_label=None, average='weighted')
             #f1 = f1_score(test_Y, predict_Y, pos_label=None, average='weighted')
-            precision = precision_score(test_Y, predict_Y)
-            recall = recall_score(test_Y, predict_Y)
-            f1 = f1_score(test_Y, predict_Y)
+            precision = precision_score(test_Y, predict_Y, pos_label=pos_label)
+            recall = recall_score(test_Y, predict_Y, pos_label=pos_label)
+            f1 = f1_score(test_Y, predict_Y, pos_label=pos_label)
+            accuracy = accuracy_score(test_Y, predict_Y)
 
             print classification_report(test_Y, predict_Y)
-            print 'accuracy: %f\n' % accuracy_score(test_Y, predict_Y)
+            print 'accuracy: %f\n' % accuracy
     
             # Store away
             results[filename][testset][PRECISION] = precision
             results[filename][testset][RECALL] = recall
             results[filename][testset][F1] = f1
+            results[filename][testset][ACCURACY] = accuracy
             precision_arr.append(precision)
             recall_arr.append(recall)
             f1_arr.append(f1)
+            acc_arr.append(accuracy)
 
         # Store away the average of the test sets
         results[filename][M_PRECISION] = np.mean(precision_arr)
         results[filename][M_RECALL] = np.mean(recall_arr)
         results[filename][M_F1] = np.mean(f1_arr)
+        results[filename][M_ACCURACY] = np.mean(acc_arr)
 
     return results
 
@@ -167,6 +172,30 @@ def print_avg_results_latex(results):
         all_score.append(fileset[M_PRECISION])
         all_score.append(fileset[M_RECALL])
         all_score.append(fileset[M_F1])
+
+        # Create the actual latex string
+        print_string = print_latex_string([filename.replace('_',' ').title()], all_score)
+        print print_string
+
+def print_avg_results_latex_new(results):
+    '''
+    Generic printing function that does not order or take into account 
+    the scores other than the filename
+    '''
+
+    # Go through each skill and print them in latex table format
+    filenames = results.keys()
+    filenames.sort()
+    for filename in filenames:
+
+        # Pull out the data for that file 
+        fileset = results[filename]
+
+        all_score = []
+        all_score.append(fileset[M_PRECISION])
+        all_score.append(fileset[M_RECALL])
+        all_score.append(fileset[M_F1])
+        all_score.append(fileset[M_ACCURACY])
 
         # Create the actual latex string
         print_string = print_latex_string([filename.replace('_',' ').title()], all_score)

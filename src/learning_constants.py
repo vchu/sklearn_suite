@@ -50,9 +50,11 @@ TESTY_KEY = 'test_Y'
 PRECISION = 'precision'
 RECALL = 'recall'
 F1 = 'f1'
+ACCURACY = 'accuracy'
 M_PRECISION = 'mean_precision'
 M_RECALL = 'mean_recall'
 M_F1 = 'mean_f1'
+M_ACCURACY = 'mean_accuracy'
 
 ####################################################
 # Constants that are feature specific
