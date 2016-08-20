@@ -11,25 +11,38 @@ import roslib; roslib.load_manifest("sklearn_suite")
 import rospy
 import numpy as np
 from collections import defaultdict
-from sklearn.cross_validation import LeaveOneOut, LeavePOut
+from sklearn.cross_validation import LeaveOneOut, LeavePOut, ShuffleSplit
 from sklearn.metrics import f1_score
 from hmm_custom import GaussianHMMClassifier, GMMHMMClassifier
 from sklearn.grid_search import GridSearchCV
 from learning_constants import * # imports all of the constants
+from sklearn import preprocessing
+from safe_leave_p_out import SafeLeavePLabelOut
 
 # Currently put some default values here.. might move it later
 # For Cross Validation
 DEFAULT_N_FOLD = 3
 DEFAULT_P = 2
 DEFAULT_JOBS = 1
+DEFAULT_RANDOM_SAMPLE_NUM = 50
 
 # For HMMs
-#DEFAULT_N_COMPONENTS = range(2,7)
-DEFAULT_N_COMPONENTS = [2, 5, 10, 15, 20, 25, 30, 35, 40, 45]
+DEFAULT_N_COMPONENTS = range(2,7) # used for HRI2016
+#DEFAULT_N_COMPONENTS = [2, 5, 10, 15, 20, 25, 30, 35, 40, 45]
 DEFAULT_VERBOSE = 5 # 5 is maximum
-DEFAULT_ITER = [2000]
-DEFAULT_COVAR = ['diag'] # options: ['diag','tied','spherical','full']
-#DEFAULT_COVAR = ['diag','tied'] # options: ['diag','tied','spherical','full']
+
+# ITER is the number of iterations the HMMs perform EM
+#DEFAULT_ITER = [2000]
+DEFAULT_ITER = [1000] # used for HRI2016
+
+# The type of covariance matrix
+# full - allows arbitrary dependencies between variables
+# diag - assumes variables are independent
+# spherical - assumes variables are independent and have same variance
+# tied - all states use the same covariance
+
+#DEFAULT_COVAR = ['full'] # used for HRI2016
+DEFAULT_COVAR = ['full'] # options: ['diag','tied','spherical','full']
 #DEFAULT_COVAR = ['diag','full'] # options: ['diag','tied','spherical','full']
 #DEFAULT_COVAR = ['diag','tied','spherical','full']
 
@@ -65,10 +78,42 @@ def _cv_setup_helper(cv, num_train, indices=None, p=DEFAULT_P):
         print 'Performing LOOCV'
         cv = LeavePOut(n=num_train, p=1, indices=indices);
 
+    elif cv == 'lPOutRandom':
+        print 'Performing LPOutRandomCV: %d' % p
+
+        # Check if we have labels - if not generate
+        # We treat all of the runs as different types
+        if indices is None:
+            indices = range(num_train)
+
+        if num_train < 2: # We only have one run
+            cv = None
+            print 'No CV - not enough runs'
+
+        elif num_train == p:
+            cv = SafeLeavePLabelOut(indices, num_train-1, DEFAULT_RANDOM_SAMPLE_NUM, [])
+        else:
+            cv = SafeLeavePLabelOut(indices, p, DEFAULT_RANDOM_SAMPLE_NUM, [])
+
+    elif cv == 'ShuffleSplit':
+        print 'Performing ShuffleSplitCV: %d' % p
+        if num_train < 2:
+            cv = None
+        elif num_train == p:
+            cv = ShuffleSplit(num_train, n_iter=DEFAULT_RANDOM_SAMPLE_NUM, test_size=p-1)
+        else:
+            cv = ShuffleSplit(num_train, n_iter=DEFAULT_RANDOM_SAMPLE_NUM, test_size=p)
+
     elif cv == 'lPOut':
         print 'Performing LPOutCV: %d' % p
-        cv = LeavePOut(n=num_train, p=p, indices=indices);
-
+        if num_train < 2: # We only have one run
+            cv = None
+            print 'Performing %d-Fold CV' % cv
+        elif num_train == p:
+            cv = LeavePOut(n=num_train, p=num_train-1, indices=indices);
+        else:
+            cv = LeavePOut(n=num_train, p=p, indices=indices);
+            
     # Check if passed in an number to do n-fold CV
     elif isinstance(cv, int):
         cv = min(cv,num_train) #verify size is within data size
@@ -134,12 +179,16 @@ def execute_grid_search(train, cv, model, parameters, n_jobs):
                         verbose =DEFAULT_VERBOSE,
                         #scoring=f1_score
                         )
+
+    # Normalize the data
+    #train_X = [preprocessing.StandardScaler().fit_transform(x) for x in train_X]
  
     # Fit the data
     grid.fit(train_X, y=train_Y) 
 
     # Pull out the best HMM
     best_clf = grid.best_estimator_
+    print best_clf
 
     # Create dictionary of things to return
     results = defaultdict(dict)

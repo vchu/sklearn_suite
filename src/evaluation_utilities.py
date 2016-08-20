@@ -26,7 +26,7 @@ def test_hmm(test_data, classifier_dict, thresh=False):
     else:
         pos_hmm = classifier_dict
         neg_hmm = None
-  
+
     if thresh:
         # Compute threshold
         (threshold, s_mean, f_mean) = get_mean_likelihood(pos_hmm[CLF_KEY], classifier_dict) 
@@ -38,6 +38,7 @@ def test_hmm(test_data, classifier_dict, thresh=False):
     if neg_hmm is not None:
         clf_neg = neg_hmm[CLF_KEY]
 
+    #import pdb; pdb.set_trace()
     # Store prediction vector
     predict = []
 
@@ -367,6 +368,7 @@ def print_affordance_user_latex(results):
                 print_string = print_latex_string([userID],all_scores)
                 if all_scores.count('N/A') < 9:
                     print print_string
+            print '\hline'
 
 def print_affordance_latex(results):
 

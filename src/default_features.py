@@ -11,6 +11,7 @@ import numpy as np
 from collections import defaultdict
 from data_utilities import check_data # basic function that cleans data
 from learning_constants import * # All of the constants defined
+from tf import transformations as transform
 
 # Constants for feature extraction
 FT_NORM_FLAG = True
@@ -128,13 +129,24 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
                 ########################################################
 
                 # Get EEF information
+                # Note: orientation is a quaternion in the form [qx,qy,qz,qw]
                 run_dict[arm+'_EEF_position'] = check_data(run_data['c6_end_effect_pose_'+arm]['position'])
                 run_dict[arm+'_EEF_orientation'] = check_data(run_data['c6_end_effect_pose_'+arm]['orientation'])
 
                 # Compute EEF position relative to object (only for first object)
                 objects = run_data[OBJECT_TRACKER_TOPIC]
                 for object_num in objects:
+                    # Position - vector from Object to EEF
                     run_dict[arm+'_EEF_obj'] = run_dict[arm+'_EEF_position'] - run_dict[object_num]['centroid']
+                
+                    # Orientation 
+                    # Create quaternion from object angle (about zaxis (0,0,1))
+                    # Rot_obj_2_EEF = q_eff * inv(q_obj)
+                    qz_object = map(lambda x: transform.quaternion_about_axis(x,(0,0,1)), run_dict[object_num]['angle'])
+                    qz_object_inv = map(transform.quaternion_inverse, qz_object)
+                    Rot_obj_2_EEF = map(lambda x,y: transform.quaternion_multiply(x,y),run_dict[arm+'_EEF_orientation'], qz_object_inv)
+                    run_dict[arm+'_EEF_obj_quat'] = Rot_obj_2_EEF
+            
 
             feature_store[FEAT_DICT_KEY][set_type][run_name] = run_dict
 
@@ -143,6 +155,41 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
         feature_store[extra_store_names] = all_data[extra_store_names]
 
     return feature_store
+
+
+def extract_features_specific_keys(all_data, run_keys, feature_list, object_num_array=[], object_feat_list=[]):
+    '''
+    This function takes a python dictionary of features, features to extract
+    and converts them into a list of triples for specific keys
+    '''
+
+    # Create data storage to use to call extract_features
+    selected_data = defaultdict(dict) 
+    selected_data[FEAT_DICT_KEY][SUCCESS_KEY] = dict()
+    selected_data[FEAT_DICT_KEY][FAIL_KEY] = dict()
+
+    # Cycle through train/test sets
+    for tt_set in all_data:
+
+        # Pull out the feature dictionary
+        t_data = all_data[tt_set][FEAT_DICT_KEY]
+
+        for sf_type in t_data:
+            run_data = t_data[sf_type]
+
+            # Cycle through run_data and save
+            for run_name in run_data:
+                if run_name in run_keys:
+                    selected_data[FEAT_DICT_KEY][sf_type][run_name] = run_data[run_name]
+
+    # Sanity check the data - did we load all of the keys
+    if len(selected_data[FEAT_DICT_KEY][SUCCESS_KEY]) + len(selected_data[FEAT_DICT_KEY][FAIL_KEY]) != len(run_keys):
+        print 'WARNING: All keys not loaded. Stopping loading.'
+        import pdb; pdb.set_trace()
+
+    # Pull out the data using the existing method
+    return extract_features(selected_data, feature_list, object_num_array=object_num_array, object_feat_list=object_feat_list)
+
 
 def extract_features(all_data, feature_list, object_num_array=[], object_feat_list=[]):
     '''
