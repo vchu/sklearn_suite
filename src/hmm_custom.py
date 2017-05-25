@@ -1,9 +1,9 @@
-import sklearn.hmm
+import hmmlearn.hmm
 import numpy as np
 import string
 
 #change a few functions otherwise it won't work with the grid search
-class GMMHMMClassifier(sklearn.hmm.GMMHMM):
+class GMMHMMClassifier(hmmlearn.hmm.GMMHMM):
     def __init__(self, n_components=1, n_mix=1, startprob=None, transmat=None,
                  startprob_prior=None, transmat_prior=None,
                  algorithm="viterbi", gmms=None, covariance_type='diag',
@@ -57,7 +57,7 @@ class GMMHMMClassifier(sklearn.hmm.GMMHMM):
 
 
 #change a few functions otherwise it won't work with the grid search
-class GaussianHMMClassifier(sklearn.hmm.GaussianHMM):
+class GaussianHMMClassifier(hmmlearn.hmm.GaussianHMM):
     def __init__(self, n_components=1, covariance_type='diag', startprob=None,
                  transmat=None, startprob_prior=None, transmat_prior=None,
                  algorithm="viterbi", means_prior=None, means_weight=0,

@@ -17,7 +17,7 @@ import pandas as pd # for nan checking
 import cPickle
 from random import shuffle
 from collections import defaultdict
-from load_h5_dataset import load_data
+from data_logger_bag.load_h5_dataset import load_data
 from learning_constants import * # imports all of the constants
 
 
