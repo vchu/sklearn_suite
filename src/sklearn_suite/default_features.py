@@ -285,5 +285,9 @@ def get_features(data, features, object_features, state_name=None, ft_norm=False
 
     return (dataset, keys)
 
+def extract_features_simple(all_features, features, object_num_array=[0], object_feature_list=[]):
+    # Extract the features to train on
+    (dataset, keys) = extract_features(all_features, features, object_num_array = object_num_array, object_feat_list=object_feature_list)
 
+    return dataset['features']
 
