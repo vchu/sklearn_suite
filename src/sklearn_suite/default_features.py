@@ -48,6 +48,7 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
             # Store off data
             run_dict = dict()
             run_dict['state'] = check_data(run_data[state_name][DATA_KEY])
+            run_dict['time'] = check_data(run_data[state_name]['time'])
             if KF_STATE_NAME in run_data:
                 run_dict['KF'] = check_data(run_data[KF_STATE_NAME][DATA_KEY])
             else:
@@ -289,5 +290,5 @@ def extract_features_simple(all_features, features, object_num_array=[0], object
     # Extract the features to train on
     (dataset, keys) = extract_features(all_features, features, object_num_array = object_num_array, object_feat_list=object_feature_list)
 
-    return dataset['features']
+    return (dataset['features'],keys)
 
