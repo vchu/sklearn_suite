@@ -136,7 +136,8 @@ def clean_keys(keys):
     return key_list
 
 def load_specific_keys_low_mem(data_input, success_keys=None, fail_keys=None, 
-                           dir_levels=None, max_level=None, preload=False):
+                           dir_levels=None, max_level=None, preload=False, 
+                           spec_key=False):
     '''
     This function is identical in functionality to load_specific_keys_gen, but
     It loads each database individually and discards afterwards to ensure
@@ -156,7 +157,7 @@ def load_specific_keys_low_mem(data_input, success_keys=None, fail_keys=None,
     for data_file in data_input:
 
         # Load the single file - assume not preloaded
-        all_data = load_database_segment(data_file, dir_levels=dir_levels, max_level=max_level)
+        all_data = load_database_segment(data_file, dir_levels=dir_levels, max_level=max_level, spec_key=spec_key)
 
         # Cycle through all of the files
         data_segment = all_data[0] # Assume we're only loading a single file at a time
@@ -172,11 +173,14 @@ def load_specific_keys_low_mem(data_input, success_keys=None, fail_keys=None,
 
 
 def load_specific_keys_gen(data_input, success_keys=None, fail_keys=None, 
-                           dir_levels=None, max_level=None, preload=False):
+                           dir_levels=None, max_level=None, preload=False,
+                           spec_key=False):
     '''
     This function is intended to be given an h5 file of the form
     data[dir][dir][dir]..[runs] where the directories are
     given by the directory_levels variable.
+
+    spec_key - if True, then the database segment only has ONE key to begin with
 
     Returns a dictionary of the form
     data[directories] = directory_levels
@@ -198,7 +202,7 @@ def load_specific_keys_gen(data_input, success_keys=None, fail_keys=None,
 
     # Check if we had already preloaded it and passed in the data rather than file name
     if not preload:
-        all_data = load_database_segment(data_input, dir_levels=dir_levels, max_level=max_level)
+        all_data = load_database_segment(data_input, dir_levels=dir_levels, max_level=max_level, spec_key=spec_key)
     else:
         all_data = data_input
 
@@ -249,7 +253,7 @@ def load_specific_keys_single(data_segment, data_store, data_file=None, dir_leve
     data_segment[DIRECTORY_KEY] = data_store[DIRECTORY_KEY]
 
 
-def load_database_segment(data_file, dir_levels=None, max_level=None):
+def load_database_segment(data_file, dir_levels=None, max_level=None, spec_key=False):
     '''
     Will load multiple data files if needed
     '''
@@ -259,19 +263,19 @@ def load_database_segment(data_file, dir_levels=None, max_level=None):
     if type(data_file) is list:
         # load multiple data segments
         for dfile in data_file:
-            data_segments.append(load_single_database_segment(dfile, dir_levels=dir_levels, max_level=max_level) )
+            data_segments.append(load_single_database_segment(dfile, dir_levels=dir_levels, max_level=max_level,spec_key=spec_key) )
 
     else:
-        data_segments.append(load_single_database_segment(data_file, dir_levels=dir_levels, max_level=max_level) )
+        data_segments.append(load_single_database_segment(data_file, dir_levels=dir_levels, max_level=max_level,spec_key=spec_key) )
 
     return data_segments
 
 
-def load_single_database_segment(data_file, dir_levels=None, max_level=None):
+def load_single_database_segment(data_file, dir_levels=None, max_level=None, spec_key=False):
 
     # Load the data and go through
     if data_file.endswith(".h5"):
-        all_data = load_data(data_file, '', False, directories=dir_levels, max_level=max_level) 
+        all_data = load_data(data_file, '', False, directories=dir_levels, max_level=max_level, spec_key=spec_key) 
     elif data_file.endswith(".pkl"):
         all_data = load_pkl(data_file)
     else:
