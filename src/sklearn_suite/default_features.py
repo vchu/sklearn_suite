@@ -45,13 +45,66 @@ def compute_single_run_feature(raw_data, state_name="_kf_tracker_state"):
 
     return features
 
-def compute_single_vis_feature(raw_data):
+def compute_single_vis_feature(run_data, tracked_object):
     '''
     Function that takes in a single dictionary of data (at one time step) and computes all things
     generic to the run.
     '''
     features = dict()
 
+    import pdb; pdb.set_trace()
+    parse_obj = False
+    objects = run_data[HLPR_OBJECT_TRACKER][-1].objects
+    labels = run_data[HLPR_OBJECT_TRACKER][-1].labels
+    if len(labels) > 0:
+        parse_obj = True
+
+    # Pull out the object we're trying to track
+    if tracked_object and parse_obj:
+        # Assume only the first object label will have the objects we need 
+        idx = np.where(labels['data'] == tracked_object)[0]
+
+        # Cycle through the features we want
+        VIZ_FEATURES = ['bb_translation','bb_rotation','rgba_color','bb_volume','bb_dimensions','obj_squareness']
+        object_name = 'objects0'
+        run_dict[object_name] = dict()
+        # Position of object
+        object_trans = objects[object_name]['transform']['translation']
+        # Orientation of object
+        object_rot = objects[object_name]['transform']['rotation']
+        # Object color
+        object_color = objects[object_name]['basicInfo']['rgba_color']
+        # Dimension of BB
+        object_dim = objects[object_name]['obb']['bb_dims']
+        # Pointcloud info
+        object_num_points = objects[object_name]['basicInfo']['num_points']
+
+        # Now actually store away the visual features
+        last_obj_dict = dict()
+        store_dict = dict()
+        for viz_feature in VIZ_FEATURES:
+            store_dict[viz_feature] = []
+
+        for i in xrange(len(object_trans['x'])):
+            if i in idx:
+                store_dict['bb_translation'].append([object_trans['x'][i],object_trans['y'][i],object_trans['z'][i]])
+                store_dict['bb_rotation'].append([object_rot['x'][i],object_rot['y'][i],object_rot['z'][i],object_rot['w'][i]])
+                store_dict['rgba_color'].append([object_color['r'][i],object_color['g'][i],object_color['b'][i],object_color['a'][i]])
+                store_dict['bb_volume'].append(object_dim['x'][i]*object_dim['y'][i]*object_dim['z'][i])
+                store_dict['bb_dimensions'].append([object_dim['x'][i],object_dim['y'][i],object_dim['z'][i]])
+                store_dict['obj_squareness'].append(object_num_points[i]/store_dict['bb_volume'][i])
+                for viz_feature in VIZ_FEATURES:
+                    last_obj_dict[viz_feature] = store_dict[viz_feature][-1]
+            else:
+                for viz_feature in VIZ_FEATURES:
+                    store_dict[viz_feature].append(last_obj_dict[viz_feature])
+        for viz_feature in VIZ_FEATURES:
+            run_dict[features] = np.vstack(store_dict[viz_feature])
+
+    else:
+        print("No given object, skipping: %s" % run_name)
+
+    return features
 
 def compute_single_audio_feature(raw_data):
     '''
