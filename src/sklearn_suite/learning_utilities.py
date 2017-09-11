@@ -11,10 +11,13 @@ import roslib; roslib.load_manifest("sklearn_suite")
 import rospy
 import numpy as np
 from collections import defaultdict
-from sklearn.cross_validation import LeaveOneOut, LeavePOut, ShuffleSplit
+#from sklearn.cross_validation import LeaveOneOut, LeavePOut, ShuffleSplit
+from sklearn.model_selection import LeaveOneOut, LeavePOut, ShuffleSplit
 from sklearn.metrics import f1_score
-from hmm_custom import GaussianHMMClassifier, GMMHMMClassifier
-from sklearn.grid_search import GridSearchCV
+from hmm_custom_updated import GaussianHMMClassifier, GMMHMMClassifier
+#from hmmlearn.hmm import GMMHMM, GaussianHMM
+#from sklearn.grid_search import GridSearchCV
+from sklearn.model_selection import GridSearchCV
 from learning_constants import * # imports all of the constants
 from sklearn import preprocessing
 from safe_leave_p_out import SafeLeavePLabelOut
@@ -27,7 +30,8 @@ DEFAULT_JOBS = 1
 DEFAULT_RANDOM_SAMPLE_NUM = 50
 
 # For HMMs
-DEFAULT_N_COMPONENTS = range(2,7) # used for HRI2016
+#DEFAULT_N_COMPONENTS = range(2,7) # used for HRI2016
+DEFAULT_N_COMPONENTS = range(2,10)
 #DEFAULT_N_COMPONENTS = [2, 5, 10, 15, 20, 25, 30, 35, 40, 45]
 DEFAULT_VERBOSE = 5 # 5 is maximum
 
@@ -42,8 +46,9 @@ DEFAULT_ITER = [1000] # used for HRI2016
 # tied - all states use the same covariance
 
 #DEFAULT_COVAR = ['full'] # used for HRI2016
-DEFAULT_COVAR = ['full'] # options: ['diag','tied','spherical','full']
+#DEFAULT_COVAR = ['diag'] # options: ['diag','tied','spherical','full']
 #DEFAULT_COVAR = ['diag','full'] # options: ['diag','tied','spherical','full']
+DEFAULT_COVAR = ['diag','full'] # options: ['diag','tied','spherical','full']
 #DEFAULT_COVAR = ['diag','tied','spherical','full']
 
 # For SVMs
@@ -54,6 +59,41 @@ DEFAULT_SVM_WEIGHT = None # option: 'auto' to not have equal weight
 DEFAULT_SVM_PROB = True
 DEFAULT_SVM_LOSS = ['hinge'] # option: 'square_hinge'
 DEFAULT_SVM_DUAL = False # perform in the dual space
+
+def test_fit_left_right(self):
+    transmat = np.zeros((self.n_components, self.n_components))
+ 
+    # Left-to-right: each state is connected to itself and its
+    # direct successor.
+    for i in range(self.n_components):
+        if i == self.n_components - 1:
+            transmat[i, i] = 1.0
+        else:
+            transmat[i, i] = transmat[i, i + 1] = 0.5
+ 
+    # Always start in first state
+    startprob = np.zeros(self.n_components)
+    startprob[0] = 1.0
+ 
+    lengths = [10, 8, 1]
+    X = self.prng.rand(sum(lengths), self.n_features)
+ 
+    h = hmm.GaussianHMM(self.n_components, covariance_type="diag",
+                        params="mct", init_params="cm")
+    h.startprob_ = startprob.copy()
+    h.transmat_ = transmat.copy()
+    h.fit(X)
+ 
+    assert (h.startprob_[startprob == 0.0] == 0.0).all()
+    assert (h.transmat_[transmat == 0.0] == 0.0).all()
+ 
+    posteriors = h.predict_proba(X)
+    assert not np.isnan(posteriors).any()
+    assert np.allclose(posteriors.sum(axis=1), 1.)
+ 
+    score, state_sequence = h.decode(X, algorithm="viterbi")
+    assert np.isfinite(score)
+
  
 def _cv_setup_helper(cv, num_train, indices=None, p=DEFAULT_P):
     '''
@@ -182,9 +222,9 @@ def execute_grid_search(train, cv, model, parameters, n_jobs):
 
     # Normalize the data
     #train_X = [preprocessing.StandardScaler().fit_transform(x) for x in train_X]
- 
+
     # Fit the data
-    grid.fit(train_X, y=train_Y) 
+    grid.fit(train_X)
 
     # Pull out the best HMM
     best_clf = grid.best_estimator_
@@ -232,15 +272,14 @@ def train_hmm_gridsearch(train, cv=DEFAULT_N_FOLD, gmm=False,
     parameters = { 
                   'n_iter':n_iter,
                   'n_components':n_components,
-                  'covariance_type':covariance_type,
-                  }   
+                  'covariance_type':covariance_type}   
 
     # If we want to use the GMMHMM classifier or just the vanilla GaussianHMM
     if (gmm):
         clf = GMMHMMClassifier(n_mix=gmm)
         
     else:
-        clf = GaussianHMMClassifier(covariance_type='full')
+        clf = GaussianHMMClassifier(covariance_type='full', left_right=True)
 
     # Actually execute the search
     return execute_grid_search(train, cv, clf, parameters, n_jobs)

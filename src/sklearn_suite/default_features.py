@@ -16,6 +16,9 @@ from tf import transformations as transform
 from pydub import AudioSegment
 import python_speech_features as psf
 import cv2
+import mad
+import librosa
+import scipy
 
 # Constants for feature extraction
 FT_NORM_FLAG = True
@@ -27,6 +30,131 @@ IMAGE_TOPIC = '_kinect_qhd_image_color_rect_compressed'
 COMPACT_FEAT = 'compactness'
 RGBA_FEAT = 'rgba_color'
 arms = ['right','left']
+
+
+def compute_single_run_feature(raw_data, state_name="_kf_tracker_state"):
+    '''
+    Function that takes in a single dictionary of data (at one time step) and computes all things
+    generic to the run.
+
+    Currently specific to jaco
+    '''
+
+    features = dict()
+    features['state'] = raw_data[state_name].data
+
+    return features
+
+def compute_single_vis_feature(raw_data):
+    '''
+    Function that takes in a single dictionary of data (at one time step) and computes all things
+    generic to the run.
+    '''
+    features = dict()
+
+
+def compute_single_audio_feature(raw_data):
+    '''
+    Function that takes in a single dictionary of data (at one time step) and computes all things
+    generic to the run.
+    '''
+    features = dict()
+
+    for feat_name in raw_data:
+        raw_segs = list(raw_data[feat_name])
+
+        # write to file and load again
+        temp_file_name = 'temp_audio.mp3'
+        mp3_file = open(temp_file_name,'w')
+        mp3_file.write(''.join(raw_segs))
+        mp3_file.close()
+
+        #data_stream = AudioSegment.from_mp3(temp_file_name)
+        #audio_data = data_stream._data
+        #converted_audio = np.fromstring(audio_data, dtype=np.int16)
+        #features[feat_name] = converted_audio
+
+        mf = mad.MadFile(temp_file_name)
+        data = mf.read()
+        if data is None:
+            features[feat_name] = 0
+            features['rmse'] = [[0,0,0]] # We assume that RMSE channel gives us three features
+            features['rmse_mean'] = 0
+        else:
+            features[feat_name] = np.frombuffer(data, dtype=np.int16)
+
+            # Compute RMSE of spectralgram signal
+            S, phase = librosa.magphase(librosa.stft(features[feat_name]))
+            rms = librosa.feature.rmse(S=S)
+            features['rmse'] = rms
+            features['rmse_mean'] = np.mean(rms)
+        
+    return features
+
+def compute_single_ft_feature(raw_data, ft_norm=None, tracked_object=None):
+    '''
+    Function that takes in a single dictionary of data (at one time step) and computes all things FT related.
+    Only computes the features for the jaco arm
+    '''
+
+    features = dict()
+    arm = 'jaco'
+    wrench_val = raw_data['_j2s7s300_driver_out_tool_wrench'].wrench
+    force = wrench_val.force
+    torque = wrench_val.torque
+    features[arm+'_force'] = [force.x,force.y,force.z]
+    features[arm+'_torque'] = [torque.x,torque.y,torque.z]
+    
+    # normalize the f/t
+    if ft_norm:
+        features[arm+'_force'] = ft_norm[0]-features[arm+'_force']
+        features[arm+'_torque'] = ft_norm[1]-torque[arm+'jaco_torque']
+
+    ########################################################
+    # Joint level (per joint position/orientation/etc.)
+    ########################################################
+
+    arm_topic = '_j2s7s300_driver_out_joint_state'
+    arm_idx = [0,1,2,3,4,5,6]
+
+    # Store off the arm features
+    features[arm+'_joint_position'] =  [raw_data[arm_topic].position[x] for x in arm_idx]
+    features[arm+'_joint_effort'] =  [raw_data[arm_topic].effort[x] for x in arm_idx]
+    features[arm+'_joint_velocity'] =  [raw_data[arm_topic].velocity[x] for x in arm_idx]
+    features[arm+'_joint_name'] =  [raw_data[arm_topic].name[x] for x in arm_idx]
+
+    ########################################################
+    # Hand Joint level (per joint position/orientation/etc.)
+    ########################################################
+
+    gripper_topic = '_vector_right_gripper_stat'
+    features[arm+'_hand_joint_position'] = raw_data[gripper_topic].position
+    features[arm+'_hand_joint_req_pos'] = raw_data[gripper_topic].requested_position
+    features[arm+'_hand_joint_current'] = raw_data[gripper_topic].current
+
+    ########################################################
+    # End Effector (EEF)  Features
+    ########################################################
+
+    pose_topic = '_eef_pose'
+    pos = raw_data[pose_topic].position
+    rot = raw_data[pose_topic].orientation
+    # Get EEF information
+    # Note: orientation is a quaternion in the form [qx,qy,qz,qw]
+    features[arm+'_EEF_position'] = [pos.x,pos.y,pos.z]
+    features[arm+'_EEF_orientation'] = [rot.x,rot.y,rot.z,rot.w]
+
+    # Compute EEF position relative to object (only for first object)
+    if tracked_object:
+        # Position - vector from Object to EEF
+        features[arm+'_EEF_obj'] = features[arm+'_EEF_position'] - tracked_object[0]
+        qz_object = tracked_object[1] # assumed tracked rotation passed in 
+        qz_object_inv = map(transform.quaternion_inverse, qz_object)
+        Rot_obj_2_EEF = map(lambda x,y: transform.quaternion_multiply(x,y),features[arm+'_EEF_orientation'], qz_object_inv)
+        features[arm+'_EEF_obj_quat'] = Rot_obj_2_EEF
+
+    return features
+
 
 def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FLAG, jaco_flag=False, tracked_object=None):
     '''
@@ -64,6 +192,10 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
             ########################################################
             # Pull out information about objects
             if jaco_flag:
+                # Check if we added any deep features
+                if 'deep_feats' in run_data:
+                    run_dict['deep_feats'] = run_data['deep_feats']
+
                 parse_obj = False
                 if 'objects' in run_data[HLPR_OBJECT_TRACKER].keys():
                     objects = run_data[HLPR_OBJECT_TRACKER]['objects']
@@ -120,7 +252,7 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
                         run_dict[viz_feature] = np.vstack(store_dict[viz_feature])
 
                 else:
-                    rospy.logwarn("No given object, skipping")
+                    print("No given object, skipping: %s" % run_name)
                 
             else:
                 objects = run_data[OBJECT_TRACKER_TOPIC]
@@ -266,6 +398,54 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
                     converted_audio = np.fromstring(audio_data, dtype=np.int16)
                     run_dict['audio_data'] = converted_audio
                     run_dict['audio_mfcc'] = psf.mfcc(converted_audio)
+                    # Do some extreme downsampling of the audio. Truncate or pad if needed
+                    num_fft = 512
+                    sample_len = len(run_dict['state'])
+                    run_time = run_dict['time'][-1] - run_dict['time'][0]
+                    winstep = (run_time/sample_len)*2.0
+                    winlen = np.around(np.array([winstep]),decimals=1)[0]
+                    while winlen*16000 > num_fft:
+                        num_fft = num_fft*2.0
+                    mfcc= psf.mfcc(converted_audio, nfft=int(num_fft), winlen=winlen, winstep=winstep)
+                    # Now make sure the length matches the size exactly
+                    if len(mfcc) > sample_len:
+                        mfcc = mfcc[0:sample_len] 
+                    elif len(mfcc) < sample_len:
+                        mfcc = np.vstack((mfcc, np.zeros((np.shape(mfcc)[1],sample_len-len(mfcc))).T))
+                    run_dict['audio_down_mfcc']  = mfcc
+
+                    # Split up into 5 msg frames
+                    audio_msgs = np.array(run_data['_kinect_audio']['raw_audio'])
+                    '''
+                    feat_store = []
+                    time_store = []
+                    for i in xrange(2,len(audio_msgs),2):
+                        # Go through the audio message, sampling 5 every two messages
+                        if i+3 > len(audio_msgs):
+                            msg_dict = dict()
+                            msg_dict['raw_audio_msg_split'] = None
+                            msg_dict['rmse'] = [[0,0,0]]
+                            msg_dict['rmse_mean'] = 0 
+                            feat_store.append(msg_dict)
+                        else:
+                            msg_chunk = audio_msgs[i-2:i+3]
+                            msg = np.array([x.tobytes() for x in msg_chunk])
+                            msg_dict = dict()
+                            msg_dict['raw_audio_msg_split'] = msg
+                            feat_store.append(compute_single_audio_feature(msg_dict))
+                            time_store.append(audio_ms
+                   
+                    # Cycle through and pull out RMS feature 
+                    rmse_data = [x['rmse'][0] for x in feat_store]
+                    rmse_mean = [x['rmse_mean'] for x in feat_store]
+                    ''' 
+                    S, phase = librosa.magphase(librosa.stft(converted_audio))
+                    rms_all = librosa.feature.rmse(S=S)
+                    rms_sub = scipy.signal.resample(rms_all[0], sample_len*3)
+
+                    # Now each audio feature vector contains 3 numbers
+                    rms = np.split(rms_sub, sample_len)
+                    run_dict['audio_rmse'] = rms
 
                     ########################################################
                     # Image
@@ -357,18 +537,22 @@ def extract_features(all_data, feature_list, object_num_array=[], object_feat_li
             one_run = data[run_name]
 
             feature_to_stack = []
-            # Go through all of the features and store in array
-            for feature in feature_list:
-                feature_to_stack.append(one_run[feature])
+            try:
+                # Go through all of the features and store in array
+                for feature in feature_list:
+                    feature_to_stack.append(one_run[feature])
 
-            for object_num in object_num_array:
-                object_name = OBJECT_CLUSTER_FEAT_PREFIX+str(object_num)
+                for object_num in object_num_array:
+                    object_name = OBJECT_CLUSTER_FEAT_PREFIX+str(object_num)
 
-                for object_feat in object_feat_list:
-                    feature_to_stack.append(one_run[object_name][object_feat])
+                    for object_feat in object_feat_list:
+                        feature_to_stack.append(one_run[object_name][object_feat])
 
-            # column stack the features into one matrix
-            features = np.column_stack(feature_to_stack)
+                # column stack the features into one matrix
+                features = np.column_stack(feature_to_stack)
+            except:
+                print "Skipping: %s. Didn't have feature: %s" % (run_name, feature)
+                continue
 
             # Store the label of the data - if unsupervised - all will be success            
             if set_type == SUCCESS_KEY:
@@ -398,7 +582,7 @@ def extract_features(all_data, feature_list, object_num_array=[], object_feat_li
     return (all_data, keys)
 
          
-def get_features(data, features, object_features, state_name=None, ft_norm=False, object_num_array=[0]):
+def get_features(data, features, object_features, state_name=None, ft_norm=False, object_num_array=[0], jaco_flag=False, tracked_object=None):
     '''
     This is the general API to features 
 
@@ -407,9 +591,9 @@ def get_features(data, features, object_features, state_name=None, ft_norm=False
    
     # Check if we have a custom state name
     if state_name is None:
-        all_features = compute_features(data, ft_norm=ft_norm)
+        all_features = compute_features(data, ft_norm=ft_norm, jaco_flag=jaco_flag, tracked_object=tracked_object)
     else:
-        all_features = compute_features(data, state_name=state_name, ft_norm=ft_norm)
+        all_features = compute_features(data, state_name=state_name, ft_norm=ft_norm, jaco_flag=jaco_flag, tracked_object=tracked_object)
 
     # Extract the features to train on
     (dataset, keys) = extract_features(all_features, features, object_num_array = object_num_array, object_feat_list=object_features)

@@ -14,7 +14,7 @@ from sklearn.metrics import classification_report, f1_score, precision_score, re
 from learning_constants import * # imports all of the constants
 from learning_utilities import prepare_data
 
-def test_hmm(test_data, classifier_dict, thresh=False):
+def test_hmm(test_data, classifier_dict, thresh=False, score_report=True):
 
     # Pull out the data
     test_X, test_Y = prepare_data(test_data) 
@@ -66,7 +66,8 @@ def test_hmm(test_data, classifier_dict, thresh=False):
         #else: # Do something with hard coded value?!
 
     # Print results
-    print (classification_report(test_Y,predict))
+    if score_report:
+        print (classification_report(test_Y,predict))
 
     return (predict, test_Y)
 
