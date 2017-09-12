@@ -51,8 +51,6 @@ def compute_single_vis_feature(run_data, tracked_object):
     generic to the run.
     '''
     features = dict()
-
-    import pdb; pdb.set_trace()
     parse_obj = False
     objects = run_data[HLPR_OBJECT_TRACKER][-1].objects
     labels = run_data[HLPR_OBJECT_TRACKER][-1].labels
@@ -61,49 +59,32 @@ def compute_single_vis_feature(run_data, tracked_object):
 
     # Pull out the object we're trying to track
     if tracked_object and parse_obj:
-        # Assume only the first object label will have the objects we need 
-        idx = np.where(labels['data'] == tracked_object)[0]
+        # Assume only the first object label will have the objects we need
+        lab_objs = np.array([x.data for x in labels])
+        idx = np.where(lab_objs == tracked_object)[0]
 
         # Cycle through the features we want
         VIZ_FEATURES = ['bb_translation','bb_rotation','rgba_color','bb_volume','bb_dimensions','obj_squareness']
-        object_name = 'objects0'
-        run_dict[object_name] = dict()
+
         # Position of object
-        object_trans = objects[object_name]['transform']['translation']
+        object_trans = objects[idx].transform.translation
         # Orientation of object
-        object_rot = objects[object_name]['transform']['rotation']
+        object_rot = objects[idx].transform.rotation
         # Object color
-        object_color = objects[object_name]['basicInfo']['rgba_color']
+        object_color = objects[idx].basicInfo.rgba_color
         # Dimension of BB
-        object_dim = objects[object_name]['obb']['bb_dims']
+        object_dim = objects[idx].obb.bb_dims
         # Pointcloud info
-        object_num_points = objects[object_name]['basicInfo']['num_points']
+        object_num_points = objects[idx].basicInfo.num_points
 
         # Now actually store away the visual features
-        last_obj_dict = dict()
-        store_dict = dict()
         for viz_feature in VIZ_FEATURES:
-            store_dict[viz_feature] = []
-
-        for i in xrange(len(object_trans['x'])):
-            if i in idx:
-                store_dict['bb_translation'].append([object_trans['x'][i],object_trans['y'][i],object_trans['z'][i]])
-                store_dict['bb_rotation'].append([object_rot['x'][i],object_rot['y'][i],object_rot['z'][i],object_rot['w'][i]])
-                store_dict['rgba_color'].append([object_color['r'][i],object_color['g'][i],object_color['b'][i],object_color['a'][i]])
-                store_dict['bb_volume'].append(object_dim['x'][i]*object_dim['y'][i]*object_dim['z'][i])
-                store_dict['bb_dimensions'].append([object_dim['x'][i],object_dim['y'][i],object_dim['z'][i]])
-                store_dict['obj_squareness'].append(object_num_points[i]/store_dict['bb_volume'][i])
-                for viz_feature in VIZ_FEATURES:
-                    last_obj_dict[viz_feature] = store_dict[viz_feature][-1]
-            else:
-                for viz_feature in VIZ_FEATURES:
-                    store_dict[viz_feature].append(last_obj_dict[viz_feature])
-        for viz_feature in VIZ_FEATURES:
-            run_dict[features] = np.vstack(store_dict[viz_feature])
-
-    else:
-        print("No given object, skipping: %s" % run_name)
-
+            features['bb_translation'] = [object_trans.x,object_trans.y,object_trans.z]
+            features['bb_rotation'] = [object_rot.x,object_rot.y,object_rot.z,object_rot.w]
+            features['rgba_color'] = [object_color.r,object_color.g,object_color.b,object_color.a]
+            features['bb_volume'] = object_dim.x*object_dim.y*object_dim.z
+            features['bb_dimensions'] = [object_dim.x,object_dim.y,object_dim.z]
+            features['obj_squareness'] = object_num_points/features['bb_volume']
     return features
 
 def compute_single_audio_feature(raw_data):
@@ -507,7 +488,7 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
                     img_data_arr = run_data[IMAGE_TOPIC]['data']
                     convert_arr = []
                     for img in img_data_arr:
-                        encode = cv2.imdecode(img, cv2.CV_LOAD_IMAGE_COLOR)
+                        encode = cv2.imdecode(img, cv2.IMREAD_COLOR)
                         convert_arr.append(encode)
                    
                     run_dict['image_data'] = convert_arr 
