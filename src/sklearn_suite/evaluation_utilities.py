@@ -95,39 +95,53 @@ def test_hmm_segment(test_data, classifiers, affordance):
 
 def plot_segment_results(results):
 
-    import matplotlib.pyplot as plt
     # Massage the results into something easily plottable
     all_aff_results = defaultdict(dict)
     for affordance in results:
         for test_set in results[affordance]:
             feat_store = dict()
+            feat2_store = dict()
             seg_results = results[affordance][test_set]['seg_results']
-            truth_vals = seg_results[1]
             segments = seg_results[0]
             for feat_type in segments:
                 feat_seg = segments[feat_type]
                 feat_store[feat_type] = defaultdict(dict)
+                feat2_store[feat_type] = defaultdict(dict)
                 for seg in feat_seg:
                     for run_num in feat_seg[seg]:
                         for sf_key in feat_seg[seg][run_num]:
                             if sf_key not in feat_store[feat_type][run_num]:
                                 feat_store[feat_type][run_num][sf_key] = []
-                            feat_store[feat_type][run_num][sf_key].append(feat_seg[seg][run_num][sf_key])
-            all_aff_results[affordance][test_set] = feat_store
+                                feat2_store[feat_type][run_num][sf_key] = []
+                            feat_store[feat_type][run_num][sf_key].append(feat_seg[seg][run_num][sf_key][0])
+                            feat2_store[feat_type][run_num][sf_key].append(feat_seg[seg][run_num][sf_key][1])
+            all_aff_results[affordance][test_set] = (feat_store,feat2_store)
 
     # now actually plot
     
-    import pdb; pdb.set_trace()
+    import matplotlib.pyplot as plt
+    truth_array = results['lamp_on_users'][0]['seg_results'][1]
     plt.figure(0)
-    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0]['force'][0]['fail']), color='r')
-    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0]['force'][0]['success']), color='b')
+    # Get the first segment length to offset the 2nd likelihood values
+    seg0 = len(all_aff_results['lamp_on_users'][0][0]['force'][0]['success'][0])
+    #plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][0]['force'][0]['fail']), color='r')
+    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][0]['force'][0]['success']), color='b')
+    #plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][1]['force'][0]['fail']), color='g')
+    plt.plot(np.insert(np.hstack(all_aff_results['lamp_on_users'][0][1]['force'][0]['success']),0,np.zeros(seg0)), color='y')
 
     # Plot the segment locations
-    
+    seg_locs = [len(x) for x in all_aff_results['lamp_on_users'][0][0]['force'][0]['success']]
+    for xc in seg_locs:
+        plt.axvline(x=xc, linewidth=2)
+    import pdb; pdb.set_trace()
+ 
 
     plt.figure(1)
-    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0]['visual'][0]['fail']), color='r')
-    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0]['visual'][0]['success']), color='b')
+    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][0]['visual'][0]['fail']), color='r')
+    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][0]['visual'][0]['success']), color='b')
+    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][1]['visual'][0]['fail']), color='g')
+    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][1]['visual'][0]['success']), color='y')
+
 
 def get_segment(data, seg_num, state_data= [], fixed=False):
     '''
