@@ -7,12 +7,143 @@
 
 import roslib; roslib.load_manifest("sklearn_suite")
 import rospy
+import os
 import numpy as np
 from collections import defaultdict
 from hmm_custom import GaussianHMMClassifier, GMMHMMClassifier
 from sklearn.metrics import classification_report, f1_score, precision_score, recall_score, accuracy_score
 from learning_constants import * # imports all of the constants
 from learning_utilities import prepare_data
+from data_utilities import load_pkl
+
+def default_to_regular(d):
+    '''
+    Convenience function that converts defaultdicts
+    to regular dictionaries
+    '''
+    if isinstance(d, defaultdict):
+        d = {k: default_to_regular(v) for k, v in d.iteritems()}
+    return d
+
+def load_hmm_segments(location):
+    '''
+    Helper function that loads the HMMs and stores them
+    in a dictionary to test with
+    '''
+    seg_clfs = defaultdict(dict)
+    for feat_type in os.listdir(location):
+        # Go through each of the affordance directories (they have different segment numbers)
+        feat_loc = os.path.join(location, feat_type)
+        for aff in os.listdir(feat_loc):
+            seg_clfs[aff][feat_type] = defaultdict(dict)
+            seg_loc = os.path.join(feat_loc, aff)
+            for seg in os.listdir(seg_loc):
+                loc = os.path.join(seg_loc,seg)
+                model_files = [(f,os.path.join(loc,f)) for f in os.listdir(loc)]
+                for model in model_files:
+                    name = model[0]
+                    if not name.endswith('.pkl'):
+                        continue
+                    else:
+                        name = name.split('.pkl')[0].split('_')
+                        aff_type = name[-1]
+                        seg_clfs[aff][feat_type][int(seg)][aff_type] = load_pkl(model[1])
+    seg_clfs = default_to_regular(seg_clfs)
+    return seg_clfs
+
+def test_hmm_segment(test_data, classifiers, affordance):
+    '''
+    Given a set of classifiers by segment, pull out the correct
+    segment and return the likelihoods and label
+
+    NOTE: affordance must be of form 'object_action'
+    '''
+
+    mode_results = defaultdict(dict) 
+    for mode in classifiers[affordance]:
+        for seg_num in classifiers[affordance][mode]:
+            # Pull out the specific segment
+            seg_clf = dict()
+            for sf_key in [SUCCESS_KEY,FAIL_KEY]:
+                seg_clf[sf_key] = classifiers[affordance][mode][seg_num][sf_key][CLF_KEY]
+      
+            mode_data = test_data[mode][0][MERGED_FEAT]
+            mode_results[mode][seg_num] = defaultdict(dict)
+            # For each test run, evaluate for each modality and store
+            for i in xrange(len(mode_data)):
+                run = mode_data[i]
+                data = run[0]
+                label = run[1]
+                # Pull out the data segment
+                state_array = test_data['state'][0][MERGED_FEAT][i][0]
+                segments = get_segment(data, seg_num, state_data=state_array, fixed=True)
+
+                # Get the likelihoods for the segment
+                likelihoods = dict()
+                for seg_tup in [0,1]:
+                    for j in xrange(1,len(segments[seg_tup])):
+                        for sf_key in [SUCCESS_KEY,FAIL_KEY]:
+                            if sf_key not in likelihoods:
+                                likelihoods[sf_key] = ([],[])
+                            likelihoods[sf_key][seg_tup].append(seg_clf[sf_key].score(segments[seg_tup][0:j]))
+
+                for sf_key in [SUCCESS_KEY,FAIL_KEY]:
+                    mode_results[mode][seg_num][i][sf_key] = likelihoods[sf_key]
+
+    truth = [x[1] for x in test_data['state'][0][MERGED_FEAT]]
+    return (mode_results, truth)
+
+def plot_segment_results(results):
+
+    import matplotlib.pyplot as plt
+    # Massage the results into something easily plottable
+    all_aff_results = defaultdict(dict)
+    for affordance in results:
+        for test_set in results[affordance]:
+            feat_store = dict()
+            seg_results = results[affordance][test_set]['seg_results']
+            truth_vals = seg_results[1]
+            segments = seg_results[0]
+            for feat_type in segments:
+                feat_seg = segments[feat_type]
+                feat_store[feat_type] = defaultdict(dict)
+                for seg in feat_seg:
+                    for run_num in feat_seg[seg]:
+                        for sf_key in feat_seg[seg][run_num]:
+                            if sf_key not in feat_store[feat_type][run_num]:
+                                feat_store[feat_type][run_num][sf_key] = []
+                            feat_store[feat_type][run_num][sf_key].append(feat_seg[seg][run_num][sf_key])
+            all_aff_results[affordance][test_set] = feat_store
+
+    # now actually plot
+    
+    import pdb; pdb.set_trace()
+    plt.figure(0)
+    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0]['force'][0]['fail']), color='r')
+    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0]['force'][0]['success']), color='b')
+
+    # Plot the segment locations
+    
+
+    plt.figure(1)
+    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0]['visual'][0]['fail']), color='r')
+    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0]['visual'][0]['success']), color='b')
+
+def get_segment(data, seg_num, state_data= [], fixed=False):
+    '''
+    Pull out the data depending on if we want the data to be fixed
+    or not. Fixed means using the KFs as part of the information
+    '''
+    # check what kind of segment we need to pull out
+    if fixed:
+        # compute for the segment afterwards as well
+        idx = np.where(state_data == seg_num)[0]
+        idx2 = np.where(state_data == seg_num+1)[0]
+        return (data[idx,:],data[idx2,:])
+    else:
+        # Keep track of what segments were considered already part of a previous segment
+        import pdb; pdb.set_trace()
+        return None
 
 def test_hmm(test_data, classifier_dict, thresh=False, score_report=True):
 

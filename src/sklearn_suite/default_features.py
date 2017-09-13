@@ -536,7 +536,7 @@ def extract_features_specific_keys(all_data, run_keys, feature_list, object_num_
     return extract_features(selected_data, feature_list, object_num_array=object_num_array, object_feat_list=object_feat_list)
 
 
-def extract_features(all_data, feature_list, object_num_array=[], object_feat_list=[]):
+def extract_features(all_data, feature_list, object_num_array=[], object_feat_list=[], low_mem=False):
     '''
     This function takes a python dictionary of features, features to extract
     and converts them into a list of triples
@@ -613,6 +613,12 @@ def extract_features(all_data, feature_list, object_num_array=[], object_feat_li
     all_data[FEAT_KEY] = norm_data
     all_data[MERGED_FEAT] = merged_data
     all_data[MERGED_FEAT_KEYS] = merged_keys
+    if low_mem:
+        return_dict = dict()
+        return_dict[FEAT_KEY] = norm_data
+        return_dict[MERGED_FEAT] = merged_data
+        return_dict[MERGED_FEAT_KEYS] = merged_keys
+        return (return_dict, keys)
     return (all_data, keys)
 
          
