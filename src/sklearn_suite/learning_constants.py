@@ -55,6 +55,7 @@ M_PRECISION = 'mean_precision'
 M_RECALL = 'mean_recall'
 M_F1 = 'mean_f1'
 M_ACCURACY = 'mean_accuracy'
+NORMALIZER = 'normalizer'
 
 ####################################################
 # Constants that are feature specific

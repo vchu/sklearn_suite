@@ -475,23 +475,27 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
                     ''' 
                     S, phase = librosa.magphase(librosa.stft(converted_audio))
                     rms_all = librosa.feature.rmse(S=S)
-                    rms_sub = scipy.signal.resample(rms_all[0], sample_len*3)
+                    #rms_sub = scipy.signal.resample(rms_all[0], sample_len*3)
+                    rms_sub = scipy.signal.resample(rms_all[0], sample_len)
 
                     # Now each audio feature vector contains 3 numbers
                     rms = np.split(rms_sub, sample_len)
+                    #run_dict['audio_rmse'] = rms_all[0]
                     run_dict['audio_rmse'] = rms
 
                     ########################################################
                     # Image
                     ########################################################
                     # Convert the image and store as a opencv image
+                    '''
                     img_data_arr = run_data[IMAGE_TOPIC]['data']
                     convert_arr = []
                     for img in img_data_arr:
                         encode = cv2.imdecode(img, cv2.IMREAD_COLOR)
                         convert_arr.append(encode)
                    
-                    run_dict['image_data'] = convert_arr 
+                    run_dict['image_data'] = convert_arr
+                    '''
             
             feature_store[FEAT_DICT_KEY][set_type][run_name] = run_dict
 

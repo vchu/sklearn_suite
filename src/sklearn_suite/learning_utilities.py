@@ -167,13 +167,16 @@ def _cv_setup_helper(cv, num_train, indices=None, p=DEFAULT_P):
 
     return cv
 
-def prepare_data(train):
+def prepare_data(train, scaler=None):
 
     # Get data ready
     train_X = []
     train_Y = []
     for i in xrange(len(train)):
-        train_X.append(train[i][FEATURE_LOC])
+        if scaler:
+            train_X.append((scaler[SUCCESS_KEY].transform(train[i][FEATURE_LOC]),scaler[FAIL_KEY].transform(train[i][FEATURE_LOC])))
+        else:
+            train_X.append(train[i][FEATURE_LOC])
         train_Y.append(train[i][LABEL_LOC])
 
     return (train_X, train_Y)
@@ -222,9 +225,13 @@ def execute_grid_search(train, cv, model, parameters, n_jobs):
 
     # Normalize the data
     #train_X = [preprocessing.StandardScaler().fit_transform(x) for x in train_X]
+    scaler = preprocessing.StandardScaler()
+    #scaler = preprocessing.Normalizer()
+    scaler = scaler.fit(np.concatenate(train_X))
+    train_X_scaled = [scaler.transform(x) for x in train_X]
 
     # Fit the data
-    grid.fit(train_X)
+    grid.fit(train_X_scaled)
 
     # Pull out the best HMM
     best_clf = grid.best_estimator_
@@ -232,10 +239,11 @@ def execute_grid_search(train, cv, model, parameters, n_jobs):
 
     # Create dictionary of things to return
     results = defaultdict(dict)
-    results[TRAIN_KEY][FEAT_KEY] = train_X
+    results[TRAIN_KEY][FEAT_KEY] = train_X_scaled
     results[TRAIN_KEY][LABEL_KEY] = train_Y
     results[CV_KEY] = grid
     results[CLF_KEY] = best_clf
+    results[NORMALIZER] = scaler
 
     return results
 
@@ -279,7 +287,8 @@ def train_hmm_gridsearch(train, cv=DEFAULT_N_FOLD, gmm=False,
         clf = GMMHMMClassifier(n_mix=gmm)
         
     else:
-        clf = GaussianHMMClassifier(covariance_type='full', left_right=True)
+        #clf = GaussianHMMClassifier(covariance_type='full', left_right=True)
+        clf = GaussianHMMClassifier(covariance_type='full')
 
     # Actually execute the search
     return execute_grid_search(train, cv, clf, parameters, n_jobs)

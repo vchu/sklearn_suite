@@ -64,9 +64,13 @@ def test_hmm_segment(test_data, classifiers, affordance):
         for seg_num in classifiers[affordance][mode]:
             # Pull out the specific segment
             seg_clf = dict()
+            norm_clf = dict()
             for sf_key in [SUCCESS_KEY,FAIL_KEY]:
-                seg_clf[sf_key] = classifiers[affordance][mode][seg_num][sf_key][CLF_KEY]
-      
+                seg_dict = classifiers[affordance][mode][seg_num][sf_key]
+                seg_clf[sf_key] = seg_dict[CLF_KEY]
+                if NORMALIZER in seg_dict:
+                    norm_clf[sf_key] = seg_dict[NORMALIZER]
+     
             mode_data = test_data[mode][0][MERGED_FEAT]
             mode_results[mode][seg_num] = defaultdict(dict)
             # For each test run, evaluate for each modality and store
@@ -80,18 +84,23 @@ def test_hmm_segment(test_data, classifiers, affordance):
 
                 # Get the likelihoods for the segment
                 likelihoods = dict()
+                import pdb; pdb.set_trace()
                 for seg_tup in [0,1]:
                     for j in xrange(1,len(segments[seg_tup])):
                         for sf_key in [SUCCESS_KEY,FAIL_KEY]:
                             if sf_key not in likelihoods:
                                 likelihoods[sf_key] = ([],[])
-                            likelihoods[sf_key][seg_tup].append(seg_clf[sf_key].score(segments[seg_tup][0:j]))
+                            segment_data = segments[seg_tup][0:j] 
+                            if sf_key in norm_clf:
+                                segment_data = norm_clf[sf_key].transform(segment_data)
+                            likelihoods[sf_key][seg_tup].append(seg_clf[sf_key].score(segment_data))
 
                 for sf_key in [SUCCESS_KEY,FAIL_KEY]:
                     mode_results[mode][seg_num][i][sf_key] = likelihoods[sf_key]
 
+    import pdb; pdb.set_trace()
     truth = [x[1] for x in test_data['state'][0][MERGED_FEAT]]
-    return (mode_results, truth)
+    return (mode_results, truth, test_data, classifiers)
 
 def plot_segment_results(results):
 
@@ -120,19 +129,39 @@ def plot_segment_results(results):
     # now actually plot
     
     import matplotlib.pyplot as plt
-    truth_array = results['lamp_on_users'][0]['seg_results'][1]
-    plt.figure(0)
-    # Get the first segment length to offset the 2nd likelihood values
-    seg0 = len(all_aff_results['lamp_on_users'][0][0]['force'][0]['success'][0])
-    #plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][0]['force'][0]['fail']), color='r')
-    plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][0]['force'][0]['success']), color='b')
-    #plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][1]['force'][0]['fail']), color='g')
-    plt.plot(np.insert(np.hstack(all_aff_results['lamp_on_users'][0][1]['force'][0]['success']),0,np.zeros(seg0)), color='y')
+    #feat_type = 'force_audio_visual'
+    colors = ['r','g','b','y']
+    feat_type = 'force'
+    plot_num = 0
+    object_name = 'drawer_open_users'
+    classifier = results[object_name][0]['seg_results'][3]
+    test_data = results[object_name][0]['seg_results'][2]
+    test_hmm_segment(test_data, classifier, 'drawer_open') 
 
-    # Plot the segment locations
-    seg_locs = [len(x) for x in all_aff_results['lamp_on_users'][0][0]['force'][0]['success']]
-    for xc in seg_locs:
-        plt.axvline(x=xc, linewidth=2)
+
+    # Plotting
+    plt.figure(plot_num)
+    for feat_type in ['force','force_audio_visual','visual']:
+        col = colors[plot_num]
+        run_num = 0
+        truth_array = results[object_name][0]['seg_results'][1]
+        state_array = results[object_name][0]['seg_results'][2]['state'][0]['merged_features'][0][0]
+        # Get the first segment length to offset the 2nd likelihood values
+        seg0 = len(all_aff_results[object_name][0][0][feat_type][0]['success'][0])
+        #plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][0]['force'][0]['fail']), color='r')
+        plt.plot(np.hstack(all_aff_results[object_name][0][0][feat_type][run_num]['success']), color=col, linewidth=2)
+        plt.plot(np.hstack(all_aff_results[object_name][0][0][feat_type][run_num]['fail']), color=col,linestyle='--', linewidth=2)
+        #plt.plot(np.insert(np.hstack(all_aff_results['lamp_on_users'][0][1][feat_type][0]['success']),0,np.zeros(seg0)), color='y')
+
+        # Plot the segment locations
+        seg_locs = np.where(np.ediff1d(state_array))[0]
+        for xc in seg_locs:
+            plt.axvline(x=xc, linewidth=2)
+        if truth_array[run_num] == 0:
+            plt.title("Success")
+        else:
+            plt.title("fail")
+        plot_num+=1
     import pdb; pdb.set_trace()
  
 
@@ -162,7 +191,13 @@ def get_segment(data, seg_num, state_data= [], fixed=False):
 def test_hmm(test_data, classifier_dict, thresh=False, score_report=True):
 
     # Pull out the data
-    test_X, test_Y = prepare_data(test_data) 
+    if NORMALIZER in classifier_dict[SUCCESS_KEY]:
+        scaler = dict()
+        scaler[SUCCESS_KEY] = classifier_dict[SUCCESS_KEY][NORMALIZER]
+        scaler[FAIL_KEY] = classifier_dict[FAIL_KEY][NORMALIZER]
+    else:
+        scaler = None
+    test_X, test_Y = prepare_data(test_data, scaler=scaler)
  
     # If key exists that means we have TWO HMMs 
     if SUCCESS_KEY in classifier_dict:
@@ -189,7 +224,10 @@ def test_hmm(test_data, classifier_dict, thresh=False, score_report=True):
 
     for feat_vec in test_X:
 
-        success_score = clf.score([feat_vec])
+        if scaler:
+            success_score = clf.score([feat_vec[0]])
+        else:
+            success_score = clf.score([feat_vec])
 
         # If we want to compute using a threshold rather than the 
         # negative model
@@ -202,7 +240,10 @@ def test_hmm(test_data, classifier_dict, thresh=False, score_report=True):
         # If we have two models
         elif neg_hmm is not None:
 
-            fail_score = clf_neg.score([feat_vec])
+            if scaler:
+                fail_score = clf_neg.score([feat_vec[1]])
+            else:
+                fail_score = clf_neg.score([feat_vec])
             if success_score > fail_score:
                 predict.append(SUCCESS_VAL)
             else:
