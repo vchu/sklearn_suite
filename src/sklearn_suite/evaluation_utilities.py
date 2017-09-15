@@ -51,7 +51,7 @@ def load_hmm_segments(location):
     seg_clfs = default_to_regular(seg_clfs)
     return seg_clfs
 
-def test_hmm_segment(test_data, classifiers, affordance):
+def test_hmm_segment(test_data, classifiers, affordance, segment_ground_truth):
     '''
     Given a set of classifiers by segment, pull out the correct
     segment and return the likelihoods and label
@@ -78,13 +78,31 @@ def test_hmm_segment(test_data, classifiers, affordance):
                 run = mode_data[i]
                 data = run[0]
                 label = run[1]
+
+                # Pull out segments based on time
+                time = test_data['time'][0][MERGED_FEAT][i][0]
+                time = time-time[0]
+                if label == 0:
+                    sf_type = SUCCESS_KEY
+                else:
+                    sf_type = FAIL_KEY
+                run_name = test_data[mode][0][MERGED_FEAT_KEYS]['names'][i] 
+                split_time = segment_ground_truth[affordance][sf_type][run_name]
+                idx = [find_nearest(time,x)[0] for x in split_time]
+                idx.insert(0,0)
+                idx.append(len(data))
+                state_len = np.ediff1d(np.array(idx))
+                state = []
+                state_num =0
+                for s_len in state_len:
+                    state.append(np.ones(s_len)*state_num)
+                    state_num+=1
+                state_array = np.hstack(state) 
                 # Pull out the data segment
-                state_array = test_data['state'][0][MERGED_FEAT][i][0]
                 segments = get_segment(data, seg_num, state_data=state_array, fixed=True)
 
                 # Get the likelihoods for the segment
                 likelihoods = dict()
-                import pdb; pdb.set_trace()
                 for seg_tup in [0,1]:
                     for j in xrange(1,len(segments[seg_tup])):
                         for sf_key in [SUCCESS_KEY,FAIL_KEY]:
@@ -95,15 +113,18 @@ def test_hmm_segment(test_data, classifiers, affordance):
                                 segment_data = norm_clf[sf_key].transform(segment_data)
                             likelihoods[sf_key][seg_tup].append(seg_clf[sf_key].score(segment_data))
 
-                for sf_key in [SUCCESS_KEY,FAIL_KEY]:
-                    mode_results[mode][seg_num][i][sf_key] = likelihoods[sf_key]
+                try:
+                    for sf_key in [SUCCESS_KEY,FAIL_KEY]:
+                        mode_results[mode][seg_num][i][sf_key] = likelihoods[sf_key]
+                except:
+                    import pdb; pdb.set_trace()
 
-    import pdb; pdb.set_trace()
     truth = [x[1] for x in test_data['state'][0][MERGED_FEAT]]
     return (mode_results, truth, test_data, classifiers)
 
-def plot_segment_results(results):
+def plot_segment_results(results, segment_ground_truth):
 
+    import pdb; pdb.set_trace()
     # Massage the results into something easily plottable
     all_aff_results = defaultdict(dict)
     for affordance in results:
@@ -127,7 +148,6 @@ def plot_segment_results(results):
             all_aff_results[affordance][test_set] = (feat_store,feat2_store)
 
     # now actually plot
-    
     import matplotlib.pyplot as plt
     #feat_type = 'force_audio_visual'
     colors = ['r','g','b','y']
@@ -136,14 +156,16 @@ def plot_segment_results(results):
     object_name = 'drawer_open_users'
     classifier = results[object_name][0]['seg_results'][3]
     test_data = results[object_name][0]['seg_results'][2]
-    test_hmm_segment(test_data, classifier, 'drawer_open') 
+    #test_hmm_segment(test_data, classifier, 'drawer_open') 
 
 
     # Plotting
     plt.figure(plot_num)
-    for feat_type in ['force','force_audio_visual','visual']:
+    #for feat_type in ['force','force_audio_visual','visual']:
+    for feat_type in ['force_audio_visual']:
+        run_names = results[object_name][0]['seg_results'][2][feat_type][1]
         col = colors[plot_num]
-        run_num = 0
+        run_num = 2
         truth_array = results[object_name][0]['seg_results'][1]
         state_array = results[object_name][0]['seg_results'][2]['state'][0]['merged_features'][0][0]
         # Get the first segment length to offset the 2nd likelihood values
@@ -154,13 +176,23 @@ def plot_segment_results(results):
         #plt.plot(np.insert(np.hstack(all_aff_results['lamp_on_users'][0][1][feat_type][0]['success']),0,np.zeros(seg0)), color='y')
 
         # Plot the segment locations
-        seg_locs = np.where(np.ediff1d(state_array))[0]
-        for xc in seg_locs:
-            plt.axvline(x=xc, linewidth=2)
+        test = np.array(truth_array)
         if truth_array[run_num] == 0:
             plt.title("Success")
+            sf_type = SUCCESS_KEY
         else:
             plt.title("fail")
+            sf_type = FAIL_KEY
+
+        seg_locs = np.where(np.ediff1d(state_array))[0]
+        aff = '_'.join(affordance.split('_')[0:2])
+        run_name = test_data[feat_type][0][MERGED_FEAT_KEYS]['names'][run_num] 
+        time = results[object_name][0]['seg_results'][2]['time'][0]['merged_features'][run_num][0]
+        time = time-time[0]
+        split_time = segment_ground_truth[aff][sf_type][run_name]
+        seg_locs = [find_nearest(time,x)[0] for x in split_time]
+        for xc in seg_locs:
+            plt.axvline(x=xc, linewidth=2)
         plot_num+=1
     import pdb; pdb.set_trace()
  
@@ -170,6 +202,10 @@ def plot_segment_results(results):
     plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][0]['visual'][0]['success']), color='b')
     plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][1]['visual'][0]['fail']), color='g')
     plt.plot(np.hstack(all_aff_results['lamp_on_users'][0][1]['visual'][0]['success']), color='y')
+
+def find_nearest(array,value):
+    idx = (np.abs(array-value)).argmin()
+    return (idx,array[idx])
 
 
 def get_segment(data, seg_num, state_data= [], fixed=False):
@@ -190,6 +226,7 @@ def get_segment(data, seg_num, state_data= [], fixed=False):
 
 def test_hmm(test_data, classifier_dict, thresh=False, score_report=True):
 
+    #import pdb; pdb.set_trace()
     # Pull out the data
     if NORMALIZER in classifier_dict[SUCCESS_KEY]:
         scaler = dict()
@@ -661,8 +698,35 @@ def print_latex_string_std(prefix, mean_scores, std_values):
     print_string = print_string[0:-1] + "\\\\"
     return print_string
 
+def test_fit_left_right():
+        n_components=3
+        n_features = 4
+        transmat = np.zeros((n_components, n_components))
 
+        # Left-to-right: each state is connected to itself and its
+        # direct successor.
+        for i in range(n_components):
+            if i == n_components - 1:
+                transmat[i, i] = 1.0
+            else:
+                transmat[i, i] = transmat[i, i + 1] = 0.5
 
+        # Always start in first state
+        startprob = np.zeros(n_components)
+        startprob[0] = 1.0
 
+        lengths = [10, 8, 1]
+        prng = np.random.RandomState(10)
+        X = prng.rand(sum(lengths), n_features)
+
+        import hmmlearn
+        clf = hmmlearn.hmm.GaussianHMM(n_components, covariance_type="diag",
+                            params="mct", init_params="cm")
+        clf.transmat_ = transmat
+        clf.startprob_ = startprob
+        clf.fit(X)
+        import pdb; pdb.set_trace()
+        clf.predict(X)
+        import pdb; pdb.set_trace()
 
 

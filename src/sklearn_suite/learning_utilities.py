@@ -252,7 +252,8 @@ def train_hmm_gridsearch(train, cv=DEFAULT_N_FOLD, gmm=False,
                          n_jobs=DEFAULT_JOBS, p=DEFAULT_P,
                          n_components=DEFAULT_N_COMPONENTS,
                          n_iter=DEFAULT_ITER,
-                         covariance_type=DEFAULT_COVAR):
+                         covariance_type=DEFAULT_COVAR,
+                         left_right=False):
     '''
     Main function that does CV to select parameters of 
     the ideal HMM
@@ -287,8 +288,7 @@ def train_hmm_gridsearch(train, cv=DEFAULT_N_FOLD, gmm=False,
         clf = GMMHMMClassifier(n_mix=gmm)
         
     else:
-        #clf = GaussianHMMClassifier(covariance_type='full', left_right=True)
-        clf = GaussianHMMClassifier(covariance_type='full')
+        clf = GaussianHMMClassifier(covariance_type='full', left_right=left_right)
 
     # Actually execute the search
     return execute_grid_search(train, cv, clf, parameters, n_jobs)

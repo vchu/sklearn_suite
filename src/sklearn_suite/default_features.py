@@ -589,7 +589,7 @@ def extract_features(all_data, feature_list, object_num_array=[], object_feat_li
                 # column stack the features into one matrix
                 features = np.column_stack(feature_to_stack)
             except:
-                print "Skipping: %s. Didn't have feature: %s" % (run_name, feature)
+                print "Skipping: %s. Didn't have feature" % run_name
                 continue
 
             # Store the label of the data - if unsupervised - all will be success            
