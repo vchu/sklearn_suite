@@ -78,7 +78,6 @@ def test_hmm_segment(test_data, classifiers, affordance, segment_ground_truth):
                 run = mode_data[i]
                 data = run[0]
                 label = run[1]
-
                 # Pull out segments based on time
                 time = test_data['time'][0][MERGED_FEAT][i][0]
                 time = time-time[0]
@@ -97,14 +96,14 @@ def test_hmm_segment(test_data, classifiers, affordance, segment_ground_truth):
                 for s_len in state_len:
                     state.append(np.ones(s_len)*state_num)
                     state_num+=1
-                state_array = np.hstack(state) 
+                state_array = np.hstack(state)
                 # Pull out the data segment
                 segments = get_segment(data, seg_num, state_data=state_array, fixed=True)
 
                 # Get the likelihoods for the segment
                 likelihoods = dict()
                 for seg_tup in [0,1]:
-                    for j in xrange(1,len(segments[seg_tup])):
+                    for j in xrange(1,len(segments[seg_tup])+1):
                         for sf_key in [SUCCESS_KEY,FAIL_KEY]:
                             if sf_key not in likelihoods:
                                 likelihoods[sf_key] = ([],[])
@@ -113,11 +112,10 @@ def test_hmm_segment(test_data, classifiers, affordance, segment_ground_truth):
                                 segment_data = norm_clf[sf_key].transform(segment_data)
                             likelihoods[sf_key][seg_tup].append(seg_clf[sf_key].score(segment_data))
 
-                try:
-                    for sf_key in [SUCCESS_KEY,FAIL_KEY]:
-                        mode_results[mode][seg_num][i][sf_key] = likelihoods[sf_key]
-                except:
-                    import pdb; pdb.set_trace()
+                for sf_key in [SUCCESS_KEY,FAIL_KEY]:
+                    mode_results[mode][seg_num][i][sf_key] = likelihoods[sf_key]
+                mode_results[mode][seg_num][i]['segments'] = segments[0]
+                mode_results[mode][seg_num][i]['path'] = seg_clf[SUCCESS_KEY].predict(segments[0])
 
     truth = [x[1] for x in test_data['state'][0][MERGED_FEAT]]
     return (mode_results, truth, test_data, classifiers)
@@ -153,10 +151,12 @@ def plot_segment_results(results, segment_ground_truth):
     colors = ['r','g','b','y']
     feat_type = 'force'
     plot_num = 0
-    object_name = 'drawer_open_users'
+    #object_name = 'drawer_open_users'
+    object_name = 'lamp_on_users'
     classifier = results[object_name][0]['seg_results'][3]
     test_data = results[object_name][0]['seg_results'][2]
     #test_hmm_segment(test_data, classifier, 'drawer_open') 
+    run_num = 2
 
 
     # Plotting
@@ -165,7 +165,6 @@ def plot_segment_results(results, segment_ground_truth):
     for feat_type in ['force_audio_visual']:
         run_names = results[object_name][0]['seg_results'][2][feat_type][1]
         col = colors[plot_num]
-        run_num = 2
         truth_array = results[object_name][0]['seg_results'][1]
         state_array = results[object_name][0]['seg_results'][2]['state'][0]['merged_features'][0][0]
         # Get the first segment length to offset the 2nd likelihood values
@@ -178,18 +177,17 @@ def plot_segment_results(results, segment_ground_truth):
         # Plot the segment locations
         test = np.array(truth_array)
         if truth_array[run_num] == 0:
-            plt.title("Success")
             sf_type = SUCCESS_KEY
         else:
-            plt.title("fail")
             sf_type = FAIL_KEY
 
         seg_locs = np.where(np.ediff1d(state_array))[0]
-        aff = '_'.join(affordance.split('_')[0:2])
+        aff = '_'.join(object_name.split('_')[0:2])
         run_name = test_data[feat_type][0][MERGED_FEAT_KEYS]['names'][run_num] 
         time = results[object_name][0]['seg_results'][2]['time'][0]['merged_features'][run_num][0]
         time = time-time[0]
         split_time = segment_ground_truth[aff][sf_type][run_name]
+        plt.title(run_name+ '_'+sf_type)
         seg_locs = [find_nearest(time,x)[0] for x in split_time]
         for xc in seg_locs:
             plt.axvline(x=xc, linewidth=2)

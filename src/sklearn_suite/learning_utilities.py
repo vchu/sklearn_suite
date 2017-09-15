@@ -32,6 +32,7 @@ DEFAULT_RANDOM_SAMPLE_NUM = 50
 # For HMMs
 #DEFAULT_N_COMPONENTS = range(2,7) # used for HRI2016
 DEFAULT_N_COMPONENTS = range(2,10)
+#DEFAULT_N_COMPONENTS = [5]
 #DEFAULT_N_COMPONENTS = [2, 5, 10, 15, 20, 25, 30, 35, 40, 45]
 DEFAULT_VERBOSE = 5 # 5 is maximum
 
@@ -48,7 +49,7 @@ DEFAULT_ITER = [1000] # used for HRI2016
 #DEFAULT_COVAR = ['full'] # used for HRI2016
 #DEFAULT_COVAR = ['diag'] # options: ['diag','tied','spherical','full']
 #DEFAULT_COVAR = ['diag','full'] # options: ['diag','tied','spherical','full']
-DEFAULT_COVAR = ['diag','full'] # options: ['diag','tied','spherical','full']
+DEFAULT_COVAR = ['diag', 'full'] # options: ['diag','tied','spherical','full']
 #DEFAULT_COVAR = ['diag','tied','spherical','full']
 
 # For SVMs
