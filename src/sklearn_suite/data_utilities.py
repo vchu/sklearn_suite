@@ -393,6 +393,50 @@ def load_specific_keys(data_file, success_keys, fail_keys):
 
     return split_data
 
+def find_nearest_time(array,value):
+    idx = (np.abs(array-value)).argmin()
+    return (idx,array[idx])
 
+def get_segments(data, split_times, time, pad_time=0.5):
+    """
+    Helper function that given the times where segments occur, goes through and
+    pulls out that from the data.
+    Specifically also includes padding time for how much data AFTER the
+    split occurs that should be included in the segment
+    This allows for the segments to contain information AFTER the segment to fully be able
+    to determine the goal has indeed been reach
 
+    For now just keep segments separate (does not include the previous segment's data)
+    """
 
+    # Go through the split times and pull out the exact time range and data index
+    # Check if the split times include the first split
+    if 0.0 not in split_times:
+        split_times.insert(0,0.0)
+
+    # Pull out the last time from the data
+    last_timestep = time[-1]
+    if last_timestep not in split_times:
+        split_times.append(last_timestep)
+
+    data_segments = []
+    # Now cycle through the split times
+    for i in xrange(len(split_times)-1):
+        start_time = split_times[i]
+        end_time = split_times[i+1]
+
+        # Now add padding to the end time
+        end_time = end_time+pad_time
+
+        # Pull out the closest idx
+        s_idx = find_nearest_time(time, start_time)[0]
+        e_idx = find_nearest_time(time, end_time)[0]
+
+        # make sure the last index is within the range of the data
+        e_idx = min(e_idx,len(data)-1)
+
+        # Get the segment value
+        data_seg = data[s_idx:e_idx,:]
+        data_segments.append(data_seg)
+
+    return data_segments
