@@ -121,6 +121,7 @@ class GaussianHMMClassifier(hmmlearn.hmm.GaussianHMM):
             score = np.mean([super(GaussianHMMClassifier, self).score(x,**kwargs)
                              for x in X])            
         except:
+            print "Error during score:  "
             score=np.NINF
         if np.isnan(score):
             score = np.NINF

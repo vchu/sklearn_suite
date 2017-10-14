@@ -265,6 +265,7 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
 
                     # Now actually store away the visual features
                     last_obj_dict = dict()
+                    back_count=0
                     store_dict = dict()
                     for viz_feature in VIZ_FEATURES:
                         store_dict[viz_feature] = []
@@ -276,12 +277,22 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
                             store_dict['rgba_color'].append([object_color['r'][i],object_color['g'][i],object_color['b'][i],object_color['a'][i]])
                             store_dict['bb_volume'].append(object_dim['x'][i]*object_dim['y'][i]*object_dim['z'][i])
                             store_dict['bb_dimensions'].append([object_dim['x'][i],object_dim['y'][i],object_dim['z'][i]])
-                            store_dict['obj_squareness'].append(object_num_points[i]/store_dict['bb_volume'][i])
+                            store_dict['obj_squareness'].append(object_num_points[i]/store_dict['bb_volume'][-1])
                             for viz_feature in VIZ_FEATURES:
                                 last_obj_dict[viz_feature] = store_dict[viz_feature][-1]
+
+                            # Store the number of times we need to forward prop the values
+                            while back_count > 0:
+                                for viz_feature in VIZ_FEATURES:
+                                    store_dict[viz_feature].insert(0,last_obj_dict[viz_feature])
+                                back_count-=1
                         else:
-                            for viz_feature in VIZ_FEATURES:
-                                store_dict[viz_feature].append(last_obj_dict[viz_feature])
+                            if not last_obj_dict:
+                                back_count+=1
+                            else:
+                                # Now include this round previously stored
+                                for viz_feature in VIZ_FEATURES:
+                                    store_dict[viz_feature].append(last_obj_dict[viz_feature])
                     for viz_feature in VIZ_FEATURES:
                         run_dict[viz_feature] = np.vstack(store_dict[viz_feature])
 
@@ -342,8 +353,10 @@ def compute_features(all_data, state_name=DEFAULT_STATE_NAME, ft_norm=FT_NORM_FL
                 ########################################################
 
                 if jaco_flag:
-                    arm_topic = '_j2s7s300_driver_out_joint_state'
-                    arm_idx = [0,1,2,3,4,5,6]
+                    arm_topic = '_joint_states'
+                    # Find the index of the 7 joints
+                    arm_joints = [j for j in run_data[arm_topic]['name'] if 'j2s7s300' in j]
+                    arm_idx = np.in1d(run_data[arm_topic]['name'], np.array(arm_joints))
                 else:
                     arm_topic = 'humanoid_state'
                     # Get all the arm joint names

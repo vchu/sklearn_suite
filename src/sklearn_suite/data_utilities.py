@@ -20,6 +20,8 @@ from collections import defaultdict
 from data_logger_bag.load_h5_dataset import load_data
 from learning_constants import * # imports all of the constants
 
+DEFAULT_SVM_WIN_SIZE = 3
+DEFAULT_SVM_GOAL_SIZE = 3
 
 def compute_keys(keys, train_size=0.8, randomize=True):
     '''
@@ -397,7 +399,7 @@ def find_nearest_time(array,value):
     idx = (np.abs(array-value)).argmin()
     return (idx,array[idx])
 
-def get_segments(data, split_times, time, pad_time=0.5):
+def get_segments(data, split_times, time, pad_time=0.5, segment_thresh=1.0, expected_seg_num=None, merge_first=False):
     """
     Helper function that given the times where segments occur, goes through and
     pulls out that from the data.
@@ -407,10 +409,17 @@ def get_segments(data, split_times, time, pad_time=0.5):
     to determine the goal has indeed been reach
 
     For now just keep segments separate (does not include the previous segment's data)
+
+    pad_time: how much padding AFTER the segment do we keep
+    segment_thresh: minimum size a segment can be
+    expected_seg_num: is passed in will check and throw warning if not the right num
     """
 
     # Go through the split times and pull out the exact time range and data index
     # Check if the split times include the first split
+    if merge_first:
+        split_times.pop(0) # remove the first segment number
+
     if 0.0 not in split_times:
         split_times.insert(0,0.0)
 
@@ -420,11 +429,18 @@ def get_segments(data, split_times, time, pad_time=0.5):
         split_times.append(last_timestep)
 
     data_segments = []
+    segment_idx = []
     # Now cycle through the split times
     for i in xrange(len(split_times)-1):
         start_time = split_times[i]
         end_time = split_times[i+1]
 
+        # Merge split times if the segment is too small
+        if end_time-start_time < segment_thresh:
+            continue
+
+        # determine where the true split occurs
+        split_idx = find_nearest_time(time, end_time)[0]
         # Now add padding to the end time
         end_time = end_time+pad_time
 
@@ -434,9 +450,100 @@ def get_segments(data, split_times, time, pad_time=0.5):
 
         # make sure the last index is within the range of the data
         e_idx = min(e_idx,len(data)-1)
+        segment_idx.append(split_idx-s_idx)
 
         # Get the segment value
         data_seg = data[s_idx:e_idx,:]
         data_segments.append(data_seg)
 
-    return data_segments
+    if expected_seg_num:
+        if len(data_segments) != expected_seg_num:
+            print('WARNING: segments returned not expected number')
+    
+    return data_segments, segment_idx
+
+def get_feature_set(segments, idx_loc, window_size=DEFAULT_SVM_WIN_SIZE, goal_size=DEFAULT_SVM_GOAL_SIZE):
+    '''
+    Given the location within the feature of the segment,
+    create training sets that split between pre success and success
+    data
+    '''
+
+    feat_set = dict()
+    for i in xrange(len(segments)):
+        # Compute the average change over the feature vector
+        # of various time scales
+        features = segments[i]
+        idx = idx_loc[i]
+ 
+        goal = features[idx-goal_size:idx+goal_size]
+        pre_goal = features[0:idx-goal_size]
+
+        # Sample randomly goal_size*2
+        pre_goal_idx = np.random.choice(len(pre_goal), goal_size, replace=False)
+        pre_goal_idx.sort() # put in order over time
+        pre_goal_idx = range(idx-2*goal_size,idx-goal_size)
+        pre_goal_vals = [pre_goal[x-window_size:x+window_size] for x in pre_goal_idx]
+
+        # Store the feature set
+        if i not in feat_set:
+            feat_set[i] = []
+
+        # Compute the mean change over the window size
+        for feat in pre_goal_vals:
+            if len(feat) < 1:
+                import pdb; pdb.set_trace()
+            mean_val = np.mean(np.diff(feat,axis=0),axis=0)
+            feat_set[i].append((mean_val,FAIL_VAL))
+
+        goal_feat = np.mean(np.diff(goal, axis=0), axis=0)
+
+        feat_set[i].append((goal_feat,SUCCESS_VAL))
+
+    return feat_set
+
+def get_test_feature_set(features, idx, window_size=DEFAULT_SVM_WIN_SIZE, goal_size=DEFAULT_SVM_GOAL_SIZE):
+    '''
+    Given the location within the feature of the segment,
+    create test set that split between pre success and success
+    data
+    '''
+
+    feat_set = []
+    
+    # Compute the average change over the feature vector
+    # of various time scales
+    goal = features[idx-goal_size:idx+goal_size]
+    pre_goal = features[0:idx-goal_size]
+
+    # Sample randomly goal_size*2
+    pre_goal_idx = np.random.choice(len(pre_goal), goal_size, replace=False)
+    pre_goal_idx.sort() # put in order over time
+    pre_goal_idx = range(window_size,idx-goal_size)
+    pre_goal_vals = [pre_goal[x-window_size:x+window_size] for x in pre_goal_idx]
+
+    # Compute the mean change over the window size
+    for feat in pre_goal_vals:
+        if len(feat) < 1:
+            import pdb; pdb.set_trace()
+        mean_val = np.mean(np.diff(feat,axis=0),axis=0)
+        feat_set.append((mean_val,FAIL_VAL))
+
+    # This is the same as in the train set
+    goal_feat = np.mean(np.diff(goal, axis=0), axis=0)
+
+    feat_set.append((goal_feat,SUCCESS_VAL))
+
+    return feat_set
+
+
+def mean_change_value(value, window_size=2):
+
+    import pdb; pdb.set_trace()
+    mean_vec = []
+    for i in xrange(len(value)-window_size):
+        val = value[i:i+window_size]
+        diff_mean = np.mean(np.diff(val, axis=0),axis=0)
+        mean_vec.append(diff_mean)
+
+    return mean_vec

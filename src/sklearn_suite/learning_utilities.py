@@ -10,6 +10,7 @@
 import roslib; roslib.load_manifest("sklearn_suite")
 import rospy
 import numpy as np
+import sklearn
 from collections import defaultdict
 #from sklearn.cross_validation import LeaveOneOut, LeavePOut, ShuffleSplit
 from sklearn.model_selection import LeaveOneOut, LeavePOut, ShuffleSplit
@@ -49,13 +50,14 @@ DEFAULT_ITER = [1000] # used for HRI2016
 #DEFAULT_COVAR = ['full'] # used for HRI2016
 #DEFAULT_COVAR = ['diag'] # options: ['diag','tied','spherical','full']
 #DEFAULT_COVAR = ['diag','full'] # options: ['diag','tied','spherical','full']
-DEFAULT_COVAR = ['diag', 'full'] # options: ['diag','tied','spherical','full']
+DEFAULT_COVAR = ['diag'] # options: ['diag','tied','spherical','full']
 #DEFAULT_COVAR = ['diag','tied','spherical','full']
 
 # For SVMs
 DEFAULT_SVM_C = np.linspace(1,1e6,100)
 DEFAULT_SVM_KERNELS = ['linear','poly','rbf','sigmoid']
-DEFAULT_SVM_PENALTY = ['l1','l2']
+#DEFAULT_SVM_PENALTY = ['l1','l2']
+DEFAULT_SVM_PENALTY = ['l2']
 DEFAULT_SVM_WEIGHT = None # option: 'auto' to not have equal weight
 DEFAULT_SVM_PROB = True
 DEFAULT_SVM_LOSS = ['hinge'] # option: 'square_hinge'
@@ -194,7 +196,7 @@ def get_train_ids(train):
     
     return None
 
-def execute_grid_search(train, cv, model, parameters, n_jobs):
+def execute_grid_search(train, cv, model, parameters, n_jobs, full_data=None, hmm=True):
     '''
     This function actually executes the grid search
 
@@ -208,6 +210,7 @@ def execute_grid_search(train, cv, model, parameters, n_jobs):
     Output: The grid used to train and the best classifier
     ''' 
 
+    #import pdb; pdb.set_trace()
     # Prepare data
     train_X, train_Y = prepare_data(train)
     train_id = get_train_ids(train) #later can make this function more specific
@@ -230,9 +233,13 @@ def execute_grid_search(train, cv, model, parameters, n_jobs):
     #scaler = preprocessing.Normalizer()
     scaler = scaler.fit(np.concatenate(train_X))
     train_X_scaled = [scaler.transform(x) for x in train_X]
+    #clf = GaussianHMMClassifier(covariance_type='diag', left_right=True, n_components=10)
 
     # Fit the data
-    grid.fit(train_X_scaled)
+    if hmm:
+        grid.fit(train_X_scaled)
+    else:
+        grid.fit(train_X_scaled, train_Y)
 
     # Pull out the best HMM
     best_clf = grid.best_estimator_
@@ -254,7 +261,7 @@ def train_hmm_gridsearch(train, cv=DEFAULT_N_FOLD, gmm=False,
                          n_components=DEFAULT_N_COMPONENTS,
                          n_iter=DEFAULT_ITER,
                          covariance_type=DEFAULT_COVAR,
-                         left_right=False):
+                         left_right=False,full_data=None):
     '''
     Main function that does CV to select parameters of 
     the ideal HMM
@@ -292,7 +299,7 @@ def train_hmm_gridsearch(train, cv=DEFAULT_N_FOLD, gmm=False,
         clf = GaussianHMMClassifier(covariance_type='full', left_right=left_right)
 
     # Actually execute the search
-    return execute_grid_search(train, cv, clf, parameters, n_jobs)
+    return execute_grid_search(train, cv, clf, parameters, n_jobs, full_data=full_data)
 
 def train_svc_gridsearch(train, cv=DEFAULT_N_FOLD, 
                          n_jobs=DEFAULT_JOBS, p=DEFAULT_P,
@@ -361,14 +368,14 @@ def train_linearsvc_gridsearch(train, cv=DEFAULT_N_FOLD,
     # Parameters to cross-validate over
     parameters = { 
                   'C': C,
-                  'loss': loss,
-                  'dual': dual,
+                  #'loss': loss,
+                  #'dual': dual,
                   'penalty': penalty,
-                  'class_weight': class_weight
+                  #'class_weight': class_weight
                   }   
 
     clf = sklearn.svm.LinearSVC()
 
     # Actually execute the search
-    return execute_grid_search(train, cv, clf, parameters, n_jobs)
+    return execute_grid_search(train, cv, clf, parameters, n_jobs, hmm=False)
 

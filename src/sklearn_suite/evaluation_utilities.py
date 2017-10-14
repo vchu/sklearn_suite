@@ -14,7 +14,7 @@ from hmm_custom import GaussianHMMClassifier, GMMHMMClassifier
 from sklearn.metrics import classification_report, f1_score, precision_score, recall_score, accuracy_score
 from learning_constants import * # imports all of the constants
 from learning_utilities import prepare_data
-from data_utilities import load_pkl
+from data_utilities import load_pkl, get_segments, get_test_feature_set
 
 def default_to_regular(d):
     '''
@@ -51,6 +51,87 @@ def load_hmm_segments(location):
     seg_clfs = default_to_regular(seg_clfs)
     return seg_clfs
 
+def test_svm_segment(test_data, classifiers, affordance, segment_ground_truth):
+    '''
+    Given a set of classifiers by segment, pull out the correct
+    segment and return the likelihoods and label
+
+    NOTE: affordance must be of form 'object_action'
+    '''
+    # Pull out the segment within the test set around the actual segment
+    # Do a sliding window for the entire run, and just be aware of when it might be
+    # positive (near the segment)
+
+    if 'drawer' in affordance:
+        expected_segs = 6
+        thresh = 1.0
+        merge_first=True
+    elif 'lamp' in affordance:
+        expected_segs = 7
+        thresh = 0.0
+        merge_first=True
+    else:
+        expected_segs = None
+
+    mode_results = defaultdict(dict) 
+    for mode in classifiers[affordance]:
+        for seg_num in classifiers[affordance][mode]:
+            # Pull out the specific segment
+            seg_clf = dict()
+            norm_clf = dict()
+            for sf_key in [SUCCESS_KEY]:
+                seg_dict = classifiers[affordance][mode][seg_num][sf_key]
+                seg_clf[sf_key] = seg_dict[CLF_KEY]
+                if NORMALIZER in seg_dict:
+                    norm_clf[sf_key] = seg_dict[NORMALIZER]
+     
+            mode_data = test_data[mode][0][MERGED_FEAT]
+            mode_results[mode][seg_num] = defaultdict(dict)
+            # For each test run, evaluate for each modality and store
+            for i in xrange(len(mode_data)):
+                run = mode_data[i]
+                data = run[0]
+                label = run[1]
+                # Pull out segments based on time
+                time = test_data['time'][0][MERGED_FEAT][i][0]
+                time = time-time[0]
+
+                # Get label
+                if label == 0:
+                    sf_type = SUCCESS_KEY
+                else:
+                    sf_type = FAIL_KEY
+                run_name = test_data[mode][0][MERGED_FEAT_KEYS]['names'][i]
+
+                state = test_data['state'][0][MERGED_FEAT][i][0].T[0]
+                time = time.T[0]
+                # Get the actual split times from the ground truth dict
+                #split_time = segment_ground_truth[affordance][sf_type][run_name]
+                split_time = time[np.where(np.diff(state))].tolist()
+
+                # Get the exact indices for each segment from the times
+                data_segments, split_locs = get_segments(data, split_time, time, segment_thresh=thresh,merge_first=merge_first)
+                norm_data_segment = norm_clf[sf_key].transform(data_segments[seg_num])
+                feat_set = get_test_feature_set(norm_data_segment, split_locs[seg_num])
+                test_X, test_Y = prepare_data(feat_set)
+
+                # Now test
+                print seg_num
+                print "Predict:"
+                print seg_clf[sf_key].predict(test_X)
+                print "Actual:"
+                print test_Y
+
+
+    import pdb; pdb.set_trace()
+    truth = [x[1] for x in test_data['state'][0][MERGED_FEAT]]
+    return (mode_results, truth, test_data, classifiers)
+
+    # Test each one individually
+
+    import pdb; pdb.set_trace() 
+
+
 def test_hmm_segment(test_data, classifiers, affordance, segment_ground_truth):
     '''
     Given a set of classifiers by segment, pull out the correct
@@ -58,6 +139,16 @@ def test_hmm_segment(test_data, classifiers, affordance, segment_ground_truth):
 
     NOTE: affordance must be of form 'object_action'
     '''
+    if 'drawer' in affordance:
+        expected_segs = 6
+        thresh = 1.0
+        merge_first=True
+    elif 'lamp' in affordance:
+        expected_segs = 7
+        thresh = 0.0
+        merge_first=True
+    else:
+        expected_segs = None
 
     mode_results = defaultdict(dict) 
     for mode in classifiers[affordance]:
@@ -86,7 +177,17 @@ def test_hmm_segment(test_data, classifiers, affordance, segment_ground_truth):
                 else:
                     sf_type = FAIL_KEY
                 run_name = test_data[mode][0][MERGED_FEAT_KEYS]['names'][i] 
-                split_time = segment_ground_truth[affordance][sf_type][run_name]
+
+                state = test_data['state'][0][MERGED_FEAT][i][0].T[0]
+                time = time.T[0]
+                # Get the actual split times from the ground truth dict
+                #split_time = segment_ground_truth[affordance][sf_type][run_name]
+                split_time = time[np.where(np.diff(state))].tolist()
+
+                # Get the exact indices for each segment from the times
+                segments, split_locs = get_segments(data, split_time, time, segment_thresh=thresh,merge_first=merge_first)
+
+                '''
                 idx = [find_nearest(time,x)[0] for x in split_time]
                 idx.insert(0,0)
                 idx.append(len(data))
@@ -99,7 +200,7 @@ def test_hmm_segment(test_data, classifiers, affordance, segment_ground_truth):
                 state_array = np.hstack(state)
                 # Pull out the data segment
                 segments = get_segment(data, seg_num, state_data=state_array, fixed=True)
-
+                '''
                 # Get the likelihoods for the segment
                 likelihoods = dict()
                 for seg_tup in [0,1]:
@@ -224,7 +325,6 @@ def get_segment(data, seg_num, state_data= [], fixed=False):
 
 def test_hmm(test_data, classifier_dict, thresh=False, score_report=True):
 
-    #import pdb; pdb.set_trace()
     # Pull out the data
     if NORMALIZER in classifier_dict[SUCCESS_KEY]:
         scaler = dict()
