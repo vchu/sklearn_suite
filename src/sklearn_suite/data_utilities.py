@@ -462,6 +462,18 @@ def get_segments(data, split_times, time, pad_time=0.5, segment_thresh=1.0, expe
     
     return data_segments, segment_idx
 
+def get_segment_w_idx(data, split_locs):
+    # Given data and the lengths of each segment split
+    # split the data according to those lengths
+
+    segs = []
+    cur_idx = 0
+    for i in xrange(len(split_locs)):
+        segs.append(data[cur_idx:cur_idx+split_locs[i],:])
+        cur_idx += split_locs[i]
+    return segs
+    
+
 def get_feature_set(segments, idx_loc, window_size=DEFAULT_SVM_WIN_SIZE, goal_size=DEFAULT_SVM_GOAL_SIZE):
     '''
     Given the location within the feature of the segment,
