@@ -9,8 +9,10 @@ import roslib; roslib.load_manifest("sklearn_suite")
 import rospy
 import os
 import numpy as np
+import scipy
 from collections import defaultdict
 from hmm_custom import GaussianHMMClassifier, GMMHMMClassifier
+from hmmlearn import hmm
 from sklearn.metrics import classification_report, f1_score, precision_score, recall_score, accuracy_score
 from learning_constants import * # imports all of the constants
 from learning_utilities import prepare_data
@@ -50,6 +52,40 @@ def load_hmm_segments(location):
                         seg_clfs[aff][feat_type][int(seg)][aff_type] = load_pkl(model[1])
     seg_clfs = default_to_regular(seg_clfs)
     return seg_clfs
+
+def load_matlab_hmm_segments(location):
+    '''
+    Helper function to load the HMMs generated from Matlab
+    '''
+    seg_clfs = defaultdict(dict)
+    for feat_type in os.listdir(location):
+        # Go through each of the affordance directories (they have different segment numbers)
+        feat_loc = os.path.join(location, feat_type)
+        for matfile in os.listdir(feat_loc):
+            # Pull out the affordance type and segment number
+            matfile_arr = matfile.split('_')
+            aff = '_'.join(matfile_arr[0:2])
+            seg_num = int(matfile_arr[-1].split('.')[0])
+
+            # Init
+            if aff not in seg_clfs:
+                seg_clfs[aff][feat_type] = defaultdict(dict)
+
+            # Load the matlab model
+            mat_hmm, mat_results = load_matlab_file(os.path.join(feat_loc,matfile))
+            seg_clfs[aff][feat_type][seg_num][SUCCESS_KEY] = (mat_hmm, mat_results)
+    return seg_clfs
+            
+def load_matlab_file(location):
+    mat_results = scipy.io.loadmat(location)
+    num_states = mat_results['best_state'][0][0]
+    mat_hmm = hmm.GaussianHMM(n_components=num_states, covariance_type="full", init_params='')
+    mat_hmm.startprob_=mat_results['b_prior1'].T[0]
+    mat_hmm.transmat_=mat_results['b_transmat1']
+    mat_hmm.means_=mat_results['b_mu1'].T
+    mat_hmm.covars_=mat_results['b_Sigma1'].T
+
+    return mat_hmm, mat_results
 
 def test_svm_segment(test_data, classifiers, affordance, segment_ground_truth):
     '''

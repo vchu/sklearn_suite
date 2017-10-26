@@ -61,7 +61,7 @@ def compute_single_vis_feature(run_data, tracked_object):
     if tracked_object and parse_obj:
         # Assume only the first object label will have the objects we need
         lab_objs = np.array([x.data for x in labels])
-        idx = np.where(lab_objs == tracked_object)[0]
+        idx = np.where(lab_objs == tracked_object)[0][0]
 
         # Cycle through the features we want
         VIZ_FEATURES = ['bb_translation','bb_rotation','rgba_color','bb_volume','bb_dimensions','obj_squareness']
@@ -78,13 +78,12 @@ def compute_single_vis_feature(run_data, tracked_object):
         object_num_points = objects[idx].basicInfo.num_points
 
         # Now actually store away the visual features
-        for viz_feature in VIZ_FEATURES:
-            features['bb_translation'] = [object_trans.x,object_trans.y,object_trans.z]
-            features['bb_rotation'] = [object_rot.x,object_rot.y,object_rot.z,object_rot.w]
-            features['rgba_color'] = [object_color.r,object_color.g,object_color.b,object_color.a]
-            features['bb_volume'] = object_dim.x*object_dim.y*object_dim.z
-            features['bb_dimensions'] = [object_dim.x,object_dim.y,object_dim.z]
-            features['obj_squareness'] = object_num_points/features['bb_volume']
+        features['bb_translation'] = [object_trans.x,object_trans.y,object_trans.z]
+        features['bb_rotation'] = [object_rot.x,object_rot.y,object_rot.z,object_rot.w]
+        features['rgba_color'] = [object_color.r,object_color.g,object_color.b,object_color.a]
+        features['bb_volume'] = object_dim.x*object_dim.y*object_dim.z
+        features['bb_dimensions'] = [object_dim.x,object_dim.y,object_dim.z]
+        features['obj_squareness'] = object_num_points/features['bb_volume']
     return features
 
 def compute_single_audio_feature(raw_data):
@@ -112,16 +111,19 @@ def compute_single_audio_feature(raw_data):
         data = mf.read()
         if data is None:
             features[feat_name] = 0
-            features['rmse'] = [[0,0,0]] # We assume that RMSE channel gives us three features
-            features['rmse_mean'] = 0
+            #features['audio_rmse'] = [[0,0,0]] # We assume that RMSE channel gives us three features
+            features['audio_rmse'] = 0
+            #features['audio_rmse_mean'] = 0
         else:
             features[feat_name] = np.frombuffer(data, dtype=np.int16)
 
             # Compute RMSE of spectralgram signal
             S, phase = librosa.magphase(librosa.stft(features[feat_name]))
             rms = librosa.feature.rmse(S=S)
-            features['rmse'] = rms
-            features['rmse_mean'] = np.mean(rms)
+
+            #features['audio_rmse'] = rms
+            features['audio_rmse'] = np.mean(rms)
+            features['audio_rmse_mean'] = np.mean(rms)
         
     return features
 
