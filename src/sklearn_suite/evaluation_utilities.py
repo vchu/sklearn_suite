@@ -71,6 +71,9 @@ def load_matlab_hmm_segments(location):
             if aff not in seg_clfs:
                 seg_clfs[aff][feat_type] = defaultdict(dict)
 
+            if feat_type not in seg_clfs[aff]:
+                seg_clfs[aff][feat_type] = defaultdict(dict)
+
             # Load the matlab model
             mat_hmm, mat_results = load_matlab_file(os.path.join(feat_loc,matfile))
             seg_clfs[aff][feat_type][seg_num][SUCCESS_KEY] = (mat_hmm, mat_results)
