@@ -773,7 +773,7 @@ def print_affordance_latex(results):
             print_string = print_latex_string([obj,act],self_scores+user_scores+guided_scores)
             print print_string
 
-def print_latex_string(prefix, scores):
+def print_latex_string(prefix, scores, color=True):
     '''
     Takes in a list of scores and prints them out in latex form
     
@@ -794,7 +794,10 @@ def print_latex_string(prefix, scores):
             score_string = 'N/A'
             score_string_color = '0' 
 
-        print_string = print_string + ' \cellcolor{gray!'+score_string_color+'} '+score_string +'  &'
+        if color is True:
+            print_string = print_string + ' \cellcolor{gray!'+score_string_color+'} '+score_string +'  &'
+        else:
+            print_string = print_string +score_string +'  &'
 
     print_string = print_string[0:-1] + "\\\\"
     return print_string
